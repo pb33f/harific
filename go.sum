@@ -1,0 +1,4 @@
+github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
+github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
+github.com/pb33f/harhar v0.0.0-20250707194835-e48f2c16e9c3 h1:kDdCUiwo/THbsEL5wvkvfftQes0+udcV9wkPz7Ik+tI=
+github.com/pb33f/harhar v0.0.0-20250707194835-e48f2c16e9c3/go.mod h1:sJHiXr/Rdkg2j8P5FYGEcqPP1ptdk8zn6xeJ3aZfAvw=
