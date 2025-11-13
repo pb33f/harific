@@ -33,7 +33,6 @@ type Index struct {
 	FilePath           string
 	FileSize           int64
 	FileHash           string
-	FileContent        []byte
 	IndexVersion       int
 	Version            string
 	Creator            *harhar.Creator
@@ -59,6 +58,7 @@ type TimeRange struct {
 	End   time.Time
 }
 
+// uses 256 shards with xxhash distribution to minimize lock contention during concurrent index building
 func (idx *Index) Intern(s string) string {
 	if s == "" {
 		return ""
@@ -80,6 +80,7 @@ func (idx *Index) Intern(s string) string {
 	}
 	shard.mu.RUnlock()
 
+	// double-checked locking: check without write lock first, then with write lock to prevent race
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
@@ -92,7 +93,6 @@ func (idx *Index) Intern(s string) string {
 }
 
 func (idx *Index) initShard(shardIdx uint64) {
-	// this is safe to call multiple times due to double-check
 	if idx.stringShards[shardIdx] == nil {
 		idx.stringShards[shardIdx] = &stringTableShard{
 			table: make(map[string]string),

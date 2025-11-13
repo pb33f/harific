@@ -330,25 +330,6 @@ func TestHARStreamer_GetIndex(t *testing.T) {
 	}
 }
 
-func TestHARStreamer_HARificate(t *testing.T) {
-	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
-	if err != nil {
-		t.Fatalf("failed to create streamer: %v", err)
-	}
-	defer streamer.Close()
-
-	ctx := context.Background()
-	if err := streamer.Initialize(ctx); err != nil {
-		t.Fatalf("failed to initialize: %v", err)
-	}
-
-	err = streamer.HARificate()
-	if err != nil {
-		t.Errorf("harificate failed: %v", err)
-	}
-}
-
 func TestHARStreamer_WithTimeout(t *testing.T) {
 	opts := DefaultStreamerOptions()
 	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)

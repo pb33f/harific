@@ -112,69 +112,36 @@ func (s *DefaultHARStreamer) StreamRange(ctx context.Context, start, end int) (<
 		return nil, fmt.Errorf("end index %d out of range", end)
 	}
 
-	resultChan := make(chan StreamResult, s.options.WorkerCount)
+	indices := make([]int, end-start)
+	for i := 0; i < end-start; i++ {
+		indices[i] = start + i
+	}
 
-	go func() {
-		defer close(resultChan)
-
-		var wg sync.WaitGroup
-		workChan := make(chan int, s.options.WorkerCount*2)
-
-		for i := 0; i < s.options.WorkerCount; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for idx := range workChan {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						entry, err := s.GetEntry(ctx, idx)
-						resultChan <- StreamResult{
-							Index: idx,
-							Entry: entry,
-							Error: err,
-						}
-					}
-				}
-			}()
-		}
-
-		for i := start; i < end; i++ {
-			select {
-			case <-ctx.Done():
-				break
-			case workChan <- i:
-			}
-		}
-		close(workChan)
-
-		wg.Wait()
-	}()
-
-	return resultChan, nil
+	return s.streamIndices(ctx, indices), nil
 }
 
 func (s *DefaultHARStreamer) StreamFiltered(ctx context.Context, filter func(*EntryMetadata) bool) (<-chan StreamResult, error) {
+	var matchingIndices []int
+	for i, metadata := range s.index.Entries {
+		if filter(metadata) {
+			matchingIndices = append(matchingIndices, i)
+		}
+	}
+
+	return s.streamIndices(ctx, matchingIndices), nil
+}
+
+func (s *DefaultHARStreamer) streamIndices(ctx context.Context, indices []int) <-chan StreamResult {
 	resultChan := make(chan StreamResult, s.options.WorkerCount)
 
 	go func() {
 		defer close(resultChan)
 
-		var matchingIndices []int
-		for i, metadata := range s.index.Entries {
-			if filter(metadata) {
-				matchingIndices = append(matchingIndices, i)
-			}
-		}
-
 		var wg sync.WaitGroup
 		workChan := make(chan int, s.options.WorkerCount*2)
 
 		for i := 0; i < s.options.WorkerCount; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for idx := range workChan {
 					select {
 					case <-ctx.Done():
@@ -188,10 +155,10 @@ func (s *DefaultHARStreamer) StreamFiltered(ctx context.Context, filter func(*En
 						}
 					}
 				}
-			}()
+			})
 		}
 
-		for _, idx := range matchingIndices {
+		for _, idx := range indices {
 			select {
 			case <-ctx.Done():
 				break
@@ -203,7 +170,7 @@ func (s *DefaultHARStreamer) StreamFiltered(ctx context.Context, filter func(*En
 		wg.Wait()
 	}()
 
-	return resultChan, nil
+	return resultChan
 }
 
 func (s *DefaultHARStreamer) GetMetadata(index int) (*EntryMetadata, error) {
@@ -243,8 +210,4 @@ func (s *DefaultHARStreamer) Stats() StreamerStats {
 		ParseErrors:     atomic.LoadInt64(&s.stats.parseErrors),
 		AverageReadTime: avgTime,
 	}
-}
-
-func (s *DefaultHARStreamer) HARificate() error {
-	return nil
 }

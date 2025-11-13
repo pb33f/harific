@@ -35,34 +35,21 @@ type HARStreamer interface {
 
     // Stats returns current streamer statistics
     Stats() StreamerStats
-
-    // HARificate finalizes the index building process
-    HARificate() error
 }
 
-// TokenParser provides low-level streaming JSON token parsing
-// this interface allows swapping between stdlib and sonic implementations
-type TokenParser interface {
-    // Init prepares the parser with a reader at a specific offset
-    Init(reader io.ReadSeeker, offset int64) error
+// HARDecoder provides JSON decoding abstraction for swapping between stdlib and sonic
+type HARDecoder interface {
+	// Token returns the next JSON token in the input stream
+	Token() (json.Token, error)
 
-    // NavigateTo moves the parser to a specific JSON path
-    NavigateTo(path []string) error
+	// Decode decodes the next JSON value into v
+	Decode(v interface{}) error
 
-    // NextToken returns the next JSON token
-    NextToken() (json.Token, error)
+	// More reports whether there is another element in the current array or object
+	More() bool
 
-    // Skip skips the current value (object, array, or primitive)
-    Skip() error
-
-    // Decode decodes the current position into the provided value
-    Decode(v interface{}) error
-
-    // Position returns the current byte position in the stream
-    Position() int64
-
-    // Depth returns the current nesting depth
-    Depth() int
+	// InputOffset returns the input stream byte offset of the current decoder position
+	InputOffset() int64
 }
 
 // IndexBuilder builds the lightweight index of all entries in a HAR file
@@ -72,9 +59,6 @@ type IndexBuilder interface {
 
     // AddEntry adds an entry to the index (used during scanning)
     AddEntry(offset int64, metadata *EntryMetadata) error
-
-    // HARificate finalizes the index building process
-    HARificate() error
 
     // GetIndex returns the completed index
     GetIndex() *Index

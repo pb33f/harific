@@ -1,6 +1,5 @@
 # braid
 
-
 Driven by massive frustration with having to try and diagnose a customer's problems from an experience they had through the browser
 Whilst using ES. Being unable to see what the customer saw in the way that the customer saw it, trying to diagnose performance problems or 
 rendering issues is really hard.

@@ -10,7 +10,29 @@ type jsonHelper struct{}
 
 var helper = &jsonHelper{}
 
-func (h *jsonHelper) skipValue(decoder *json.Decoder) error {
+// StdlibDecoder wraps encoding/json.Decoder to implement HARDecoder interface
+// to swap to sonic: create SonicDecoder implementing HARDecoder, update newHARDecoder()
+type StdlibDecoder struct {
+	decoder *json.Decoder
+}
+
+func (s *StdlibDecoder) Token() (json.Token, error) {
+	return s.decoder.Token()
+}
+
+func (s *StdlibDecoder) Decode(v interface{}) error {
+	return s.decoder.Decode(v)
+}
+
+func (s *StdlibDecoder) More() bool {
+	return s.decoder.More()
+}
+
+func (s *StdlibDecoder) InputOffset() int64 {
+	return s.decoder.InputOffset()
+}
+
+func (h *jsonHelper) skipValue(decoder HARDecoder) error {
 	token, err := decoder.Token()
 	if err != nil {
 		return err
@@ -26,7 +48,7 @@ func (h *jsonHelper) skipValue(decoder *json.Decoder) error {
 	return nil
 }
 
-func (h *jsonHelper) skipObject(decoder *json.Decoder) error {
+func (h *jsonHelper) skipObject(decoder HARDecoder) error {
 	for decoder.More() {
 		if _, err := decoder.Token(); err != nil {
 			return err
@@ -39,7 +61,7 @@ func (h *jsonHelper) skipObject(decoder *json.Decoder) error {
 	return err
 }
 
-func (h *jsonHelper) skipArray(decoder *json.Decoder) error {
+func (h *jsonHelper) skipArray(decoder HARDecoder) error {
 	for decoder.More() {
 		if err := h.skipValue(decoder); err != nil {
 			return err
@@ -49,7 +71,7 @@ func (h *jsonHelper) skipArray(decoder *json.Decoder) error {
 	return err
 }
 
-func (h *jsonHelper) navigateToEntries(decoder *json.Decoder) error {
+func (h *jsonHelper) navigateToEntries(decoder HARDecoder) error {
 	if _, err := decoder.Token(); err != nil {
 		return err
 	}
@@ -92,8 +114,8 @@ func (h *jsonHelper) navigateToEntries(decoder *json.Decoder) error {
 	return fmt.Errorf("entries array not found")
 }
 
-func newHARDecoder(r io.Reader) *json.Decoder {
+func newHARDecoder(r io.Reader) HARDecoder {
 	d := json.NewDecoder(r)
 	d.UseNumber()
-	return d
+	return &StdlibDecoder{decoder: d}
 }

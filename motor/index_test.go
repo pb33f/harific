@@ -196,16 +196,6 @@ func TestIndexBuilder_TotalBytes(t *testing.T) {
 		index.TotalRequestBytes, index.TotalResponseBytes)
 }
 
-func TestIndexBuilder_HARificate(t *testing.T) {
-	builder := NewIndexBuilder("test.har")
-
-	// test harificate
-	err := builder.HARificate()
-	if err != nil {
-		t.Errorf("harificate failed: %v", err)
-	}
-}
-
 func TestIndexBuilder_AddEntry(t *testing.T) {
 	builder := NewIndexBuilder("test.har")
 
