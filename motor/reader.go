@@ -34,16 +34,15 @@ func (r *DefaultEntryReader) ReadAt(offset int64, length int64) (*harhar.Entry, 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if length <= 0 {
+		return nil, fmt.Errorf("length must be > 0, got %d (offset not found in index?)", length)
+	}
+
 	if _, err := r.file.Seek(offset, io.SeekStart); err != nil {
 		return nil, fmt.Errorf("failed to seek to offset %d: %w", offset, err)
 	}
 
-	var limitedReader io.Reader
-	if length > 0 {
-		limitedReader = io.LimitReader(r.file, length)
-	} else {
-		limitedReader = r.file
-	}
+	limitedReader := io.LimitReader(r.file, length)
 
 	// json array entries are comma-separated; when seeking to an offset mid-array, skip the separator to get valid json
 	skipReader := &skipLeadingReader{reader: limitedReader}
@@ -97,6 +96,10 @@ func (s *skipLeadingReader) Read(p []byte) (n int, err error) {
 
 func (r *DefaultEntryReader) ReadPartial(offset int64, fields []string) (map[string]interface{}, error) {
 	length := r.findLengthForOffset(offset)
+	if length == 0 {
+		return nil, fmt.Errorf("no entry found at offset %d", offset)
+	}
+
 	entry, err := r.ReadAt(offset, length)
 	if err != nil {
 		return nil, err
@@ -124,6 +127,10 @@ func (r *DefaultEntryReader) ReadPartial(offset int64, fields []string) (map[str
 
 func (r *DefaultEntryReader) StreamResponseBody(offset int64) (io.ReadCloser, error) {
 	length := r.findLengthForOffset(offset)
+	if length == 0 {
+		return nil, fmt.Errorf("no entry found at offset %d", offset)
+	}
+
 	entry, err := r.ReadAt(offset, length)
 	if err != nil {
 		return nil, err
