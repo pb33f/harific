@@ -135,8 +135,9 @@ func TestEntryReader_ReadMetadata(t *testing.T) {
 	}
 	defer reader.Close()
 
-	// read metadata
-	metadata, err := reader.ReadMetadata(0)
+	// read metadata using actual byte offset
+	firstOffset := index.Entries[0].FileOffset
+	metadata, err := reader.ReadMetadata(firstOffset)
 	if err != nil {
 		t.Fatalf("failed to read metadata: %v", err)
 	}

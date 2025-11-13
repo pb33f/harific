@@ -2,7 +2,6 @@ package motor
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 )
 
@@ -69,49 +68,6 @@ func (h *jsonHelper) skipArray(decoder HARDecoder) error {
 	}
 	_, err := decoder.Token()
 	return err
-}
-
-func (h *jsonHelper) navigateToEntries(decoder HARDecoder) error {
-	if _, err := decoder.Token(); err != nil {
-		return err
-	}
-
-	for decoder.More() {
-		token, err := decoder.Token()
-		if err != nil {
-			return err
-		}
-
-		if key, ok := token.(string); ok && key == keyLog {
-			if _, err := decoder.Token(); err != nil {
-				return err
-			}
-
-			for decoder.More() {
-				token, err := decoder.Token()
-				if err != nil {
-					return err
-				}
-
-				if key, ok := token.(string); ok && key == keyEntries {
-					if _, err := decoder.Token(); err != nil {
-						return err
-					}
-					return nil
-				}
-
-				if err := h.skipValue(decoder); err != nil {
-					return err
-				}
-			}
-		} else {
-			if err := h.skipValue(decoder); err != nil {
-				return err
-			}
-		}
-	}
-
-	return fmt.Errorf("entries array not found")
 }
 
 func newHARDecoder(r io.Reader) HARDecoder {

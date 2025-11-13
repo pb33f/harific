@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/pb33f/harhar"
@@ -129,10 +130,10 @@ func (r *DefaultEntryReader) StreamResponseBody(offset int64) (io.ReadCloser, er
 	}
 
 	if entry.Response.Body.Content == "" {
-		return io.NopCloser(nil), nil
+		return io.NopCloser(strings.NewReader("")), nil
 	}
 
-	return io.NopCloser(nil), nil
+	return io.NopCloser(strings.NewReader(entry.Response.Body.Content)), nil
 }
 
 func (r *DefaultEntryReader) findLengthForOffset(offset int64) int64 {
@@ -145,12 +146,12 @@ func (r *DefaultEntryReader) findLengthForOffset(offset int64) int64 {
 }
 
 func (r *DefaultEntryReader) ReadMetadata(offset int64) (*EntryMetadata, error) {
-	entryIndex := int(offset)
-	if entryIndex < 0 || entryIndex >= len(r.index.Entries) {
-		return nil, fmt.Errorf("entry index %d out of range", entryIndex)
+	for _, meta := range r.index.Entries {
+		if meta.FileOffset == offset {
+			return meta, nil
+		}
 	}
-
-	return r.index.Entries[entryIndex], nil
+	return nil, fmt.Errorf("no entry found at offset %d", offset)
 }
 
 func (r *DefaultEntryReader) Close() error {

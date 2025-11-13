@@ -36,14 +36,18 @@ func NewHARStreamer(filePath string, options StreamerOptions) (*DefaultHARStream
 		options:  options,
 	}
 
-	if options.EnableCache {
-		streamer.cache = NewNoOpCache()
-	}
+	// cache not implemented yet - EnableCache option reserved for future use
 
 	return streamer, nil
 }
 
 func (s *DefaultHARStreamer) Initialize(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	file, err := os.Open(s.filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -54,6 +58,12 @@ func (s *DefaultHARStreamer) Initialize(ctx context.Context) error {
 	index, err := builder.Build(file)
 	if err != nil {
 		return fmt.Errorf("failed to build index: %w", err)
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	s.index = index
@@ -78,6 +88,7 @@ func (s *DefaultHARStreamer) GetEntry(ctx context.Context, index int) (*harhar.E
 	if s.cache != nil {
 		if entry, ok := s.cache.Get(index); ok {
 			atomic.AddInt64(&s.stats.cacheHits, 1)
+			atomic.AddInt64(&s.stats.totalReads, 1)
 			return entry, nil
 		}
 		atomic.AddInt64(&s.stats.cacheMisses, 1)
@@ -112,12 +123,7 @@ func (s *DefaultHARStreamer) StreamRange(ctx context.Context, start, end int) (<
 		return nil, fmt.Errorf("end index %d out of range", end)
 	}
 
-	indices := make([]int, end-start)
-	for i := 0; i < end-start; i++ {
-		indices[i] = start + i
-	}
-
-	return s.streamIndices(ctx, indices), nil
+	return s.streamRange(ctx, start, end), nil
 }
 
 func (s *DefaultHARStreamer) StreamFiltered(ctx context.Context, filter func(*EntryMetadata) bool) (<-chan StreamResult, error) {
@@ -131,16 +137,21 @@ func (s *DefaultHARStreamer) StreamFiltered(ctx context.Context, filter func(*En
 	return s.streamIndices(ctx, matchingIndices), nil
 }
 
-func (s *DefaultHARStreamer) streamIndices(ctx context.Context, indices []int) <-chan StreamResult {
+func (s *DefaultHARStreamer) streamRange(ctx context.Context, start, end int) <-chan StreamResult {
 	resultChan := make(chan StreamResult, s.options.WorkerCount)
 
 	go func() {
 		defer close(resultChan)
 
-		var wg sync.WaitGroup
-		workChan := make(chan int, s.options.WorkerCount*2)
+		workerCount := s.options.WorkerCount
+		if workerCount < 1 {
+			workerCount = 1
+		}
 
-		for i := 0; i < s.options.WorkerCount; i++ {
+		var wg sync.WaitGroup
+		workChan := make(chan int, workerCount*2)
+
+		for i := 0; i < workerCount; i++ {
 			wg.Go(func() {
 				for idx := range workChan {
 					select {
@@ -158,10 +169,59 @@ func (s *DefaultHARStreamer) streamIndices(ctx context.Context, indices []int) <
 			})
 		}
 
+	ProducerLoop:
+		for idx := start; idx < end; idx++ {
+			select {
+			case <-ctx.Done():
+				break ProducerLoop
+			case workChan <- idx:
+			}
+		}
+		close(workChan)
+
+		wg.Wait()
+	}()
+
+	return resultChan
+}
+
+func (s *DefaultHARStreamer) streamIndices(ctx context.Context, indices []int) <-chan StreamResult {
+	resultChan := make(chan StreamResult, s.options.WorkerCount)
+
+	go func() {
+		defer close(resultChan)
+
+		workerCount := s.options.WorkerCount
+		if workerCount < 1 {
+			workerCount = 1
+		}
+
+		var wg sync.WaitGroup
+		workChan := make(chan int, workerCount*2)
+
+		for i := 0; i < workerCount; i++ {
+			wg.Go(func() {
+				for idx := range workChan {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						entry, err := s.GetEntry(ctx, idx)
+						resultChan <- StreamResult{
+							Index: idx,
+							Entry: entry,
+							Error: err,
+						}
+					}
+				}
+			})
+		}
+
+	ProducerLoop:
 		for _, idx := range indices {
 			select {
 			case <-ctx.Done():
-				break
+				break ProducerLoop
 			case workChan <- idx:
 			}
 		}

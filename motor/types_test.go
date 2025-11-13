@@ -53,10 +53,6 @@ func TestIndex_InternConcurrent(t *testing.T) {
 func TestDefaultStreamerOptions(t *testing.T) {
 	opts := DefaultStreamerOptions()
 
-	if opts.ReadBufferSize != 64*1024 {
-		t.Errorf("expected buffer size 64KB, got %d", opts.ReadBufferSize)
-	}
-
 	if opts.EnableCache {
 		t.Error("expected cache disabled by default")
 	}

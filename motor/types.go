@@ -24,9 +24,6 @@ type EntryMetadata struct {
 	PageRef      string
 	ServerIP     string
 	Connection   string
-	HasError     bool
-	IsCompressed bool
-	IsCached     bool
 }
 
 type Index struct {
@@ -41,6 +38,7 @@ type Index struct {
 	Entries            []*EntryMetadata
 	TotalEntries       int
 	stringShards       [256]*stringTableShard
+	shardInitMu        sync.Mutex
 	TotalRequestBytes  int64
 	TotalResponseBytes int64
 	TimeRange          TimeRange
@@ -93,6 +91,9 @@ func (idx *Index) Intern(s string) string {
 }
 
 func (idx *Index) initShard(shardIdx uint64) {
+	idx.shardInitMu.Lock()
+	defer idx.shardInitMu.Unlock()
+
 	if idx.stringShards[shardIdx] == nil {
 		idx.stringShards[shardIdx] = &stringTableShard{
 			table: make(map[string]string),
@@ -117,15 +118,13 @@ type StreamerStats struct {
 }
 
 type StreamerOptions struct {
-	ReadBufferSize int
-	EnableCache    bool
-	WorkerCount    int
+	EnableCache bool
+	WorkerCount int
 }
 
 func DefaultStreamerOptions() StreamerOptions {
 	return StreamerOptions{
-		ReadBufferSize: 64 * 1024,
-		EnableCache:    false,
-		WorkerCount:    4,
+		EnableCache: false,
+		WorkerCount: 4,
 	}
 }
