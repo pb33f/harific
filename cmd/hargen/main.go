@@ -42,7 +42,7 @@ var (
 
 func main() {
 	var (
-		size     = flag.String("size", "5MB", "target file size (5MB, 50MB, 500MB, 5GB)")
+		size     = flag.String("size", "5MB", "target file size (e.g., 700MB, 1GB, 2GB)")
 		output   = flag.String("output", "", "output file path (default: test-{size}.har)")
 		seed     = flag.Int64("seed", time.Now().UnixNano(), "random seed for reproducibility")
 	)
@@ -84,17 +84,26 @@ func main() {
 }
 
 func parseSize(s string) (int64, error) {
-	switch s {
-	case "5MB":
-		return 5 * MB, nil
-	case "50MB":
-		return 50 * MB, nil
-	case "500MB":
-		return 500 * MB, nil
-	case "5GB":
-		return 5 * GB, nil
+	// Parse size with units (e.g., "700MB", "1GB", "2GB")
+	var value int64
+	var unit string
+
+	// Try to parse number and unit
+	n, err := fmt.Sscanf(s, "%d%s", &value, &unit)
+	if err != nil || n != 2 {
+		return 0, fmt.Errorf("invalid size format: %s (use format like 700MB, 1GB, 2GB)", s)
+	}
+
+	// Convert to bytes based on unit
+	switch unit {
+	case "KB":
+		return value * KB, nil
+	case "MB":
+		return value * MB, nil
+	case "GB":
+		return value * GB, nil
 	default:
-		return 0, fmt.Errorf("unsupported size: %s (use 5MB, 50MB, 500MB, or 5GB)", s)
+		return 0, fmt.Errorf("unsupported unit: %s (use KB, MB, or GB)", unit)
 	}
 }
 
