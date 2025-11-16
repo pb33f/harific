@@ -1,4 +1,6 @@
-#HARific
+# HARific
+
+![logo](harific-logo.png)
 
 We renamed it from braid. HARific is more fun.
 
