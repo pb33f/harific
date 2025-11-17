@@ -11,20 +11,15 @@ import (
 func ColorizeHARTableOutput(tableView string, cursor int, rows []table.Row) string {
     lines := strings.Split(tableView, "\n")
 
-    // Determine which line is selected (matches the cursor)
-    // Use the URL column (column 1) which is unique to each row
-    var selectedURL string
-    if cursor >= 0 && cursor < len(rows) && len(rows[cursor]) > 1 {
-        selectedURL = rows[cursor][1]
-    }
+    // Table structure: line 0 = header, line 1 = border, line 2+ = data rows
+    // cursor 0 maps to line 2, cursor 1 to line 3, etc.
+    selectedLineIdx := cursor + 2
 
     var result strings.Builder
     for i, line := range lines {
-        isSelectedLine := selectedURL != "" && strings.Contains(line, selectedURL)
-
         // Only colorize non-selected rows (matching Vacuum pattern)
         // Selected rows are already styled by the table with pink background
-        if i >= 1 && !isSelectedLine {
+        if i >= 1 && i != selectedLineIdx {
             // Colorize HTTP methods
             line = colorizeHTTPMethods(line)
 
