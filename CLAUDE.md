@@ -1,14 +1,14 @@
-# Braid - HAR File Analysis and Replay Tool
+# Harific - HAR File Analysis and Replay Tool
 
 ## Overview
-Braid is a dual-purpose application for working with HAR (HTTP Archive) files:
+Harific is a dual-purpose application for working with HAR (HTTP Archive) files:
 1. **Terminal User Interface (TUI)** - Visualize and explore large HAR files
 2. **Mock Server** - Replay captured HTTP responses to simulate original server behavior
 
 ## Architecture
 
 ### Motor Package (Core Engine)
-The `motor` package is the high-performance streaming engine that powers Braid. It enables processing of massive HAR files (multiple gigabytes) without loading them entirely into memory.
+The `motor` package is the high-performance streaming engine that powers Harific. It enables processing of massive HAR files (multiple gigabytes) without loading them entirely into memory.
 
 #### Key Components:
 - **Index Builder** (`index.go`) - Scans HAR files once to build a lightweight metadata index
