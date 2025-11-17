@@ -11,10 +11,20 @@ import (
 func ColorizeHARTableOutput(tableView string, cursor int, rows []table.Row) string {
     lines := strings.Split(tableView, "\n")
 
+    // Determine which line is selected (matches the cursor)
+    // Use the URL column (column 1) which is unique to each row
+    var selectedURL string
+    if cursor >= 0 && cursor < len(rows) && len(rows[cursor]) > 1 {
+        selectedURL = rows[cursor][1]
+    }
+
     var result strings.Builder
     for i, line := range lines {
-        // Skip header row (i == 0)
-        if i >= 1 {
+        isSelectedLine := selectedURL != "" && strings.Contains(line, selectedURL)
+
+        // Only colorize non-selected rows (matching Vacuum pattern)
+        // Selected rows are already styled by the table with pink background
+        if i >= 1 && !isSelectedLine {
             // Colorize HTTP methods
             line = colorizeHTTPMethods(line)
 
@@ -82,23 +92,68 @@ func colorizeStatusCodes(line string) string {
 func colorizeDurations(line string) string {
     // Durations end with "ms" or "s" and appear in the last column
     // We need to find patterns like "123ms", "1.23s", "571ms", etc.
+    // Must be careful not to match URLs or paths that end with "s"
 
     // Find duration patterns - common formats: "12.34s", "123ms", "1234ms", "571ms"
-    if strings.Contains(line, "ms ") || strings.Contains(line, "s ") {
+    if strings.Contains(line, "ms") || strings.Contains(line, "s") {
         // Split by spaces to find duration tokens
         parts := strings.Split(line, " ")
         for i, part := range parts {
-            if strings.HasSuffix(part, "ms") || strings.HasSuffix(part, "s") {
-                // Check if it's actually a duration (contains digits)
-                if containsDigit(part) {
-                    parts[i] = StyleDurationFaint.Render(part)
-                }
+            if isDuration(part) {
+                parts[i] = StyleDurationFaint.Render(part)
             }
         }
         line = strings.Join(parts, " ")
     }
 
     return line
+}
+
+// isDuration checks if a string is a valid duration (not a path or other text)
+func isDuration(s string) bool {
+    if s == "" {
+        return false
+    }
+
+    // Must start with a digit
+    if s[0] < '0' || s[0] > '9' {
+        return false
+    }
+
+    // Check for valid time unit suffixes: ms, s, m, h
+    var valueStr string
+    if strings.HasSuffix(s, "ms") {
+        valueStr = strings.TrimSuffix(s, "ms")
+    } else if strings.HasSuffix(s, "s") {
+        valueStr = strings.TrimSuffix(s, "s")
+    } else if strings.HasSuffix(s, "m") {
+        valueStr = strings.TrimSuffix(s, "m")
+    } else if strings.HasSuffix(s, "h") {
+        valueStr = strings.TrimSuffix(s, "h")
+    } else {
+        return false // No valid time unit suffix
+    }
+
+    // Value must not be empty
+    if len(valueStr) == 0 {
+        return false
+    }
+
+    // Value should only contain digits and at most one decimal point
+    // This excludes paths like "/api/users" or identifiers like "5u7hmsls"
+    dotCount := 0
+    for _, c := range valueStr {
+        if c == '.' {
+            dotCount++
+            if dotCount > 1 {
+                return false // Multiple dots not valid
+            }
+        } else if c < '0' || c > '9' {
+            return false // Non-digit character found (excludes paths and identifiers)
+        }
+    }
+
+    return true
 }
 
 // intToString converts an int to string without importing strconv
