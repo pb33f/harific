@@ -48,6 +48,8 @@ func ColorizeHARTableOutput(tableView string, cursor int, rows []table.Row) stri
     selectedLineMarker := "\x1b[1;38;5;201;48;2;42;26;42m"
 
     var result strings.Builder
+    result.Grow(len(tableView)) // pre-allocate to avoid reallocations during string building
+
     for i, line := range lines {
         // Check if this line is selected (either has background marker OR matches all column data)
         isSelectedLine := strings.Contains(line, selectedLineMarker) ||
