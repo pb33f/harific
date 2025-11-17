@@ -27,7 +27,7 @@ func init() {
 }
 
 func runVersion(cmd *cobra.Command, args []string) {
-	fmt.Printf("Braid - HAR File Viewer and Mock Server\n")
+	fmt.Printf("Harific - HAR File Viewer and Mock Server\n")
 	fmt.Printf("Version:    %s\n", Version)
 	fmt.Printf("Git Commit: %s\n", GitCommit)
 	fmt.Printf("Build Date: %s\n", BuildDate)
