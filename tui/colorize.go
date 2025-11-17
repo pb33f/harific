@@ -1,25 +1,61 @@
 package tui
 
 import (
+    "regexp"
+    "strconv"
     "strings"
 
     "github.com/charmbracelet/bubbles/v2/table"
 )
+
+// pre-compiled regex for status code matching (compiled once at startup)
+var statusCodeRegex = regexp.MustCompile(`\s(\d{3})\s`)
+
+// pre-rendered method strings (populated in init() after styles are ready)
+var (
+    renderedGET    string
+    renderedQUERY  string
+    renderedPATCH  string
+    renderedPUT    string
+    renderedPOST   string
+    renderedDELETE string
+)
+
+func init() {
+    // initialize rendered method strings after package variables are ready
+    renderedGET = StyleMethodGreen.Render("GET")
+    renderedQUERY = StyleMethodGreen.Render("QUERY")
+    renderedPATCH = StyleMethodYellow.Render("PATCH")
+    renderedPUT = StyleMethodBlue.Render("PUT")
+    renderedPOST = StyleMethodBlue.Render("POST")
+    renderedDELETE = StyleMethodRed.Render("DELETE")
+}
 
 // ColorizeHARTableOutput adds color codes to the rendered table output
 // following the vacuum pattern of post-processing the table.View() output
 func ColorizeHARTableOutput(tableView string, cursor int, rows []table.Row) string {
     lines := strings.Split(tableView, "\n")
 
-    // Table structure: line 0 = header, line 1 = border, line 2+ = data rows
-    // cursor 0 maps to line 2, cursor 1 to line 3, etc.
-    selectedLineIdx := cursor + 2
+    // Build unique identifier from selected row (method + URL + status + duration)
+    // This handles cases where the table doesn't apply background styling when scrolled
+    var selectedIdentifier string
+    if cursor >= 0 && cursor < len(rows) && len(rows[cursor]) >= 4 {
+        // Combine all columns to create unique identifier that minimizes false matches
+        selectedIdentifier = rows[cursor][0] + rows[cursor][1] + rows[cursor][2] + rows[cursor][3]
+    }
+
+    // Also check for pink background ANSI code (works when selection is at top/bottom of viewport)
+    selectedLineMarker := "\x1b[1;38;5;201;48;2;42;26;42m"
 
     var result strings.Builder
     for i, line := range lines {
+        // Check if this line is selected (either has background marker OR matches all column data)
+        isSelectedLine := strings.Contains(line, selectedLineMarker) ||
+            (selectedIdentifier != "" && strings.Contains(line, selectedIdentifier))
+
         // Only colorize non-selected rows (matching Vacuum pattern)
         // Selected rows are already styled by the table with pink background
-        if i >= 1 && i != selectedLineIdx {
+        if i >= 1 && !isSelectedLine {
             // Colorize HTTP methods
             line = colorizeHTTPMethods(line)
 
@@ -39,45 +75,42 @@ func ColorizeHARTableOutput(tableView string, cursor int, rows []table.Row) stri
     return result.String()
 }
 
-// colorizeHTTPMethods applies colors to HTTP method names
+// colorizeHTTPMethods applies colors to HTTP method names using pre-rendered strings
 func colorizeHTTPMethods(line string) string {
-    // GET and QUERY - green
-    line = strings.ReplaceAll(line, " GET ", " "+StyleMethodGreen.Render("GET")+" ")
-    line = strings.ReplaceAll(line, " QUERY ", " "+StyleMethodGreen.Render("QUERY")+" ")
-
-    // PATCH - yellow
-    line = strings.ReplaceAll(line, " PATCH ", " "+StyleMethodYellow.Render("PATCH")+" ")
-
-    // PUT and POST - blue
-    line = strings.ReplaceAll(line, " PUT ", " "+StyleMethodBlue.Render("PUT")+" ")
-    line = strings.ReplaceAll(line, " POST ", " "+StyleMethodBlue.Render("POST")+" ")
-
-    // DELETE - red
-    line = strings.ReplaceAll(line, " DELETE ", " "+StyleMethodRed.Render("DELETE")+" ")
-
+    // use pre-rendered strings to avoid calling Render() on every line
+    line = strings.ReplaceAll(line, " GET ", " "+renderedGET+" ")
+    line = strings.ReplaceAll(line, " QUERY ", " "+renderedQUERY+" ")
+    line = strings.ReplaceAll(line, " PATCH ", " "+renderedPATCH+" ")
+    line = strings.ReplaceAll(line, " PUT ", " "+renderedPUT+" ")
+    line = strings.ReplaceAll(line, " POST ", " "+renderedPOST+" ")
+    line = strings.ReplaceAll(line, " DELETE ", " "+renderedDELETE+" ")
     // HEAD, OPTIONS, TRACE remain default (no colorization)
-
     return line
 }
 
-// colorizeStatusCodes applies colors to status codes
+// colorizeStatusCodes applies colors to status codes using regex
 func colorizeStatusCodes(line string) string {
-    // Check for 4xx status codes (yellow)
-    for status := 400; status < 500; status++ {
-        statusStr := " " + intToString(status) + " "
-        if strings.Contains(line, statusStr) {
-            line = strings.Replace(line, statusStr, " "+StyleStatus4xx.Render(intToString(status))+" ", 1)
-            break
-        }
+    // use pre-compiled regex to find 3-digit status code
+    matches := statusCodeRegex.FindStringSubmatch(line)
+    if len(matches) < 2 {
+        return line // no status code found
     }
 
-    // Check for 5xx status codes (red)
-    for status := 500; status < 600; status++ {
-        statusStr := " " + intToString(status) + " "
-        if strings.Contains(line, statusStr) {
-            line = strings.Replace(line, statusStr, " "+StyleStatus5xx.Render(intToString(status))+" ", 1)
-            break
-        }
+    statusStr := matches[1] // "404", "500", etc.
+    statusCode, err := strconv.Atoi(statusStr)
+    if err != nil {
+        return line
+    }
+
+    // colorize based on range
+    if statusCode >= 400 && statusCode < 500 {
+        // 4xx - yellow
+        colored := " " + StyleStatus4xx.Render(statusStr) + " "
+        line = strings.Replace(line, " "+statusStr+" ", colored, 1)
+    } else if statusCode >= 500 && statusCode < 600 {
+        // 5xx - red
+        colored := " " + StyleStatus5xx.Render(statusStr) + " "
+        line = strings.Replace(line, " "+statusStr+" ", colored, 1)
     }
 
     return line
@@ -151,27 +184,3 @@ func isDuration(s string) bool {
     return true
 }
 
-// intToString converts an int to string without importing strconv
-func intToString(n int) string {
-    if n == 0 {
-        return "0"
-    }
-
-    // Build string representation
-    digits := []byte{}
-    for n > 0 {
-        digits = append([]byte{byte('0' + n%10)}, digits...)
-        n /= 10
-    }
-    return string(digits)
-}
-
-// containsDigit checks if a string contains at least one digit
-func containsDigit(s string) bool {
-    for _, c := range s {
-        if c >= '0' && c <= '9' {
-            return true
-        }
-    }
-    return false
-}

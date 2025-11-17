@@ -73,7 +73,7 @@ func (m *HARViewModel) renderTitle() string {
     title := fmt.Sprintf("HARific: %s | ", m.fileName)
     titleStyle := lipgloss.NewStyle().
         Padding(0, 1).
-        BorderStyle(lipgloss.NormalBorder()).Width(m.width)
+        BorderStyle(lipgloss.NormalBorder()).Width(m.width).BorderForeground(RGBBlue)
 
     titleTextStyle := lipgloss.NewStyle().
         Bold(true)
