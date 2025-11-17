@@ -60,10 +60,10 @@ func (m *HARViewModel) renderLoadingView() string {
 
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(ColorPink))
+		Foreground(RGBPink)
 
 	fileInfoStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorGrey))
+		Foreground(RGBGrey)
 
 	title := titleStyle.Render("Loading HAR File")
 	fileInfo := fileInfoStyle.Render(fmt.Sprintf("\n%s", m.fileName))
@@ -72,7 +72,7 @@ func (m *HARViewModel) renderLoadingView() string {
 
 	if m.indexingMessage != "" {
 		messageStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(ColorBlue)).
+			Foreground(RGBBlue).
 			MarginTop(2)
 		spinnerText += "\n\n" + messageStyle.Render(m.indexingMessage)
 	}
@@ -85,7 +85,7 @@ func (m *HARViewModel) renderErrorView() string {
 		Width(m.width).
 		Height(m.height).
 		Align(lipgloss.Center, lipgloss.Center).
-		Foreground(lipgloss.Color(ColorRed)).
+		Foreground(RGBRed).
 		Bold(true)
 
 	errorMsg := fmt.Sprintf("❌ Error loading HAR file\n\n%v\n\nPress 'q' to quit", m.err)
@@ -96,6 +96,6 @@ func (m *HARViewModel) renderErrorView() string {
 func createLoadingSpinner() spinner.Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPink))
+	s.Style = lipgloss.NewStyle().Foreground(RGBPink)
 	return s
 }

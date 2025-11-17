@@ -5,102 +5,107 @@ import (
     "github.com/charmbracelet/lipgloss/v2"
 )
 
-// matching vacuum's color scheme
+// Color constants matching vacuum EXACTLY
 var (
-    ColorPink       = "#FF10F0"
-    ColorBlue       = "#00BFFF"
-    ColorGrey       = "#808080"
-    ColorDarkGrey   = "#404040"
-    ColorSubtlePink = "#3A1A38"
-
-    ColorGreen  = "#10FF10"
-    ColorYellow = "#FFD700"
-    ColorRed    = "#FF3030"
-
-    ColorWhite = "#FFFFFF"
-    ColorBlack = "#000000"
+    RGBBlue       = lipgloss.Color("45")
+    RGBPink       = lipgloss.Color("201")
+    RGBRed        = lipgloss.Color("196")
+    RGBYellow     = lipgloss.Color("220")
+    RGBGreen      = lipgloss.Color("46")
+    RGBGrey       = lipgloss.Color("246")
+    RGBSubtlePink = lipgloss.Color("#2a1a2a")
 )
 
+// General styles
 var (
     TitleStyle = lipgloss.NewStyle().
         Bold(true).
-        Foreground(lipgloss.Color(ColorPink))
+        Foreground(RGBPink)
 
     SubtitleStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color(ColorGrey))
+        Foreground(RGBGrey)
 
     HeaderStyle = lipgloss.NewStyle().
         Bold(true).
-        Foreground(lipgloss.Color(ColorBlue))
+        Foreground(RGBBlue)
 
     SelectedStyle = lipgloss.NewStyle().
-        Background(lipgloss.Color(ColorSubtlePink)).
-        Foreground(lipgloss.Color(ColorPink))
+        Background(RGBSubtlePink).
+        Foreground(RGBPink)
 
     StatusOKStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color(ColorGreen))
+        Foreground(RGBGreen)
 
     StatusWarningStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color(ColorYellow))
+        Foreground(RGBYellow)
 
     StatusErrorStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color(ColorRed))
+        Foreground(RGBRed)
 
     BorderStyle = lipgloss.NewStyle().
         BorderStyle(lipgloss.NormalBorder()).
-        BorderForeground(lipgloss.Color(ColorBlue))
+        BorderForeground(RGBBlue)
 
     ViewportTitleStyle = lipgloss.NewStyle().
         Bold(true).
-        Foreground(lipgloss.Color(ColorBlue)).
-        Background(lipgloss.Color(ColorDarkGrey)).
+        Foreground(RGBBlue).
+        Background(RGBGrey).
         Padding(0, 1)
 
     HelpStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color(ColorGrey))
+        Foreground(RGBGrey)
 
     HelpKeyStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color(ColorPink))
+        Foreground(RGBPink)
 
     ErrorStyle = lipgloss.NewStyle().
-        Foreground(lipgloss.Color(ColorRed)).
+        Foreground(RGBRed).
         Bold(true)
 )
 
-// currently using default white styles; pb33f theme will be activated later
+// Table colorization styles for methods and status codes
+var (
+    // HTTP Methods
+    StyleMethodGreen  = lipgloss.NewStyle().Foreground(RGBGreen)  // GET, QUERY
+    StyleMethodYellow = lipgloss.NewStyle().Foreground(RGBYellow) // PATCH
+    StyleMethodBlue   = lipgloss.NewStyle().Foreground(RGBBlue)   // PUT, POST
+    StyleMethodRed    = lipgloss.NewStyle().Foreground(RGBRed)    // DELETE
+
+    // Status codes
+    StyleStatus4xx = lipgloss.NewStyle().Foreground(RGBYellow) // 4xx errors
+    StyleStatus5xx = lipgloss.NewStyle().Foreground(RGBRed)    // 5xx errors
+
+    // Duration (faint like entry count)
+    StyleDurationFaint = lipgloss.NewStyle().Faint(true)
+)
+
+// ApplyTableStyles applies the Vacuum table theme to match exactly
 func ApplyTableStyles(t table.Model) table.Model {
     s := table.DefaultStyles()
+
+    s.Header = lipgloss.NewStyle().
+        BorderStyle(lipgloss.NormalBorder()).
+        BorderForeground(RGBPink).
+        BorderBottom(true).
+        BorderLeft(false).
+        BorderRight(false).
+        BorderTop(false).
+        Foreground(RGBPink).
+        Bold(true).
+        Padding(0, 1)
+
+    s.Selected = lipgloss.NewStyle().
+        Bold(true).
+        Foreground(RGBPink).
+        Background(RGBSubtlePink).
+        Padding(0, 0)
+
+    s.Cell = lipgloss.NewStyle().
+        BorderStyle(lipgloss.NormalBorder()).
+        BorderForeground(RGBPink).
+        BorderRight(false).
+        Padding(0, 1)
+
     t.SetStyles(s)
     return t
-}
-
-func GetStatusColor(statusCode int) string {
-    switch {
-    case statusCode >= 200 && statusCode < 300:
-        return ColorGreen
-    case statusCode >= 300 && statusCode < 400:
-        return ColorBlue
-    case statusCode >= 400 && statusCode < 500:
-        return ColorYellow
-    case statusCode >= 500:
-        return ColorRed
-    default:
-        return ColorGrey
-    }
-}
-
-// GetMethodColor returns the appropriate color for HTTP method
-func GetMethodColor(method string) string {
-    switch method {
-    case "GET":
-        return ColorGreen
-    case "POST":
-        return ColorBlue
-    case "PUT", "PATCH":
-        return ColorYellow
-    case "DELETE":
-        return ColorRed
-    default:
-        return ColorGrey
-    }
 }

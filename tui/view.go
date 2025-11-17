@@ -38,7 +38,12 @@ func (m *HARViewModel) renderTableView() string {
 
     builder.WriteString(m.renderTitle())
     builder.WriteString("\n")
-    builder.WriteString(m.table.View())
+
+    // Colorize table output after rendering
+    tableView := m.table.View()
+    colorizedTable := ColorizeHARTableOutput(tableView, m.table.Cursor(), m.rows)
+    builder.WriteString(colorizedTable)
+
     builder.WriteString("\n")
     builder.WriteString(m.renderStatusBar())
 
@@ -50,7 +55,12 @@ func (m *HARViewModel) renderSplitView() string {
 
     builder.WriteString(m.renderTitle())
     builder.WriteString("\n")
-    builder.WriteString(m.table.View())
+
+    // Colorize table output after rendering
+    tableView := m.table.View()
+    colorizedTable := ColorizeHARTableOutput(tableView, m.table.Cursor(), m.rows)
+    builder.WriteString(colorizedTable)
+
     builder.WriteString("\n")
     builder.WriteString(m.renderSplitPanel())
     builder.WriteString("\n")
@@ -130,7 +140,7 @@ func (m *HARViewModel) renderSplitPanel() string {
         BorderStyle(lipgloss.NormalBorder())
 
     // Create focused and unfocused versions
-    focusedBorderStyle := baseStyle.BorderForeground(lipgloss.Color(ColorBlue))
+    focusedBorderStyle := baseStyle.BorderForeground(RGBBlue)
     unfocusedBorderStyle := baseStyle.BorderForeground(lipgloss.Color("240"))
 
     // Apply focused border to the active viewport
