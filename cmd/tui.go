@@ -15,8 +15,16 @@ func LaunchTUI(harFile string) error {
 
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		return fmt.Errorf("error running TUI: %w", err)
+	}
+
+	// cleanup resources
+	if m, ok := finalModel.(*tui.HARViewModel); ok {
+		if err := m.Cleanup(); err != nil {
+			return fmt.Errorf("cleanup error: %w", err)
+		}
 	}
 
 	return nil
