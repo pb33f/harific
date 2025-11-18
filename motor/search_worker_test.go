@@ -241,11 +241,11 @@ func TestSearchEntry_EarlyReturn_MetadataMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := make([]byte, 64*1024)
-	searchResult := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
+	searchResults := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
 
-	require.NotNil(t, searchResult)
-	assert.Equal(t, injectedEntry.EntryIndex, searchResult.Index)
-	assert.Equal(t, "url", searchResult.Field)
+	require.NotEmpty(t, searchResults)
+	assert.Equal(t, injectedEntry.EntryIndex, searchResults[0].Index)
+	assert.Equal(t, "url", searchResults[0].Field)
 
 	// verify early return: no bytes should have been read from disk
 	stats := searcher.Stats()
@@ -292,11 +292,11 @@ func TestSearchEntry_LazyLoading_BodyMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := make([]byte, 64*1024)
-	searchResult := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
+	searchResults := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
 
-	require.NotNil(t, searchResult)
-	assert.Equal(t, injectedEntry.EntryIndex, searchResult.Index)
-	assert.Equal(t, "request.body", searchResult.Field)
+	require.NotEmpty(t, searchResults)
+	assert.Equal(t, injectedEntry.EntryIndex, searchResults[0].Index)
+	assert.Equal(t, "request.body", searchResults[0].Field)
 
 	// verify entry WAS loaded (bytes read > 0)
 	stats := searcher.Stats()
@@ -362,11 +362,11 @@ func TestSearchEntry_AllFieldTypes(t *testing.T) {
 			require.NoError(t, err)
 
 			buf := make([]byte, 64*1024)
-			searchResult := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
+			searchResults := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
 
-			require.NotNil(t, searchResult, "should find term in %s", tt.injectionLoc)
-			assert.Equal(t, injectedEntry.EntryIndex, searchResult.Index)
-			assert.Contains(t, searchResult.Field, tt.expectedField)
+			require.NotEmpty(t, searchResults, "should find term in %s", tt.injectionLoc)
+			assert.Equal(t, injectedEntry.EntryIndex, searchResults[0].Index)
+			assert.Contains(t, searchResults[0].Field, tt.expectedField)
 		})
 	}
 }
@@ -413,9 +413,9 @@ func TestSearchEntry_DeepSearchDisabled_SkipsResponseBody(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := make([]byte, 64*1024)
-	searchResult := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
+	searchResults := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
 
-	assert.Nil(t, searchResult, "should NOT find term when deep search disabled")
+	assert.Empty(t, searchResults, "should NOT find term when deep search disabled")
 }
 
 func TestSearchEntry_DeepSearchEnabled_FindsResponseBody(t *testing.T) {
@@ -460,10 +460,10 @@ func TestSearchEntry_DeepSearchEnabled_FindsResponseBody(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := make([]byte, 64*1024)
-	searchResult := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
+	searchResults := searchEntry(context.Background(), searcher, injectedEntry.EntryIndex, pattern, opts, &buf)
 
-	require.NotNil(t, searchResult)
-	assert.Equal(t, "response.body", searchResult.Field)
+	require.NotEmpty(t, searchResults)
+	assert.Equal(t, "response.body", searchResults[0].Field)
 }
 
 func TestSearchEntry_NoMatch(t *testing.T) {
@@ -493,7 +493,7 @@ func TestSearchEntry_NoMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := make([]byte, 64*1024)
-	searchResult := searchEntry(context.Background(), searcher, 0, pattern, opts, &buf)
+	searchResults := searchEntry(context.Background(), searcher, 0, pattern, opts, &buf)
 
-	assert.Nil(t, searchResult)
+	assert.Empty(t, searchResults)
 }

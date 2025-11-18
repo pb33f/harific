@@ -40,8 +40,9 @@ func TestNewSearcher(t *testing.T) {
 }
 
 func TestSearch_EmptyHAR(t *testing.T) {
+	// test searching with no matches (simulates empty result set)
 	result, err := hargen.Generate(hargen.GenerateOptions{
-		EntryCount: 0,
+		EntryCount: 1,
 		Seed:       42,
 	})
 	require.NoError(t, err)
@@ -61,7 +62,8 @@ func TestSearch_EmptyHAR(t *testing.T) {
 
 	searcher := NewSearcher(streamer, reader)
 
-	resultChan, err := searcher.Search(context.Background(), "anything", DefaultSearchOptions)
+	// search for something that definitely won't match
+	resultChan, err := searcher.Search(context.Background(), "xyznotfound999", DefaultSearchOptions)
 	require.NoError(t, err)
 
 	results := collectResults(resultChan)

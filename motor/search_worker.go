@@ -66,9 +66,10 @@ func worker(ctx context.Context,
 
 			// process each entry in this batch
 			for i := batch.startIndex; i < batch.endIndex; i++ {
-				result := searchEntry(ctx, searcher, i, pattern, opts, buf)
+				entryResults := searchEntry(ctx, searcher, i, pattern, opts, buf)
 
-				if result != nil {
+				// flatten results from this entry into batch
+				for _, result := range entryResults {
 					batchResults = append(batchResults, *result)
 				}
 
@@ -80,9 +81,17 @@ func worker(ctx context.Context,
 
 			// send batch results if any matches found
 			if len(batchResults) > 0 {
+				// count only successful matches (exclude errors)
+				successCount := 0
+				for _, result := range batchResults {
+					if result.Error == nil {
+						successCount++
+					}
+				}
+
 				select {
 				case results <- batchResults:
-					atomic.AddInt64(&searcher.stats.matchesFound, int64(len(batchResults)))
+					atomic.AddInt64(&searcher.stats.matchesFound, int64(successCount))
 				case <-ctx.Done():
 					return
 				}
@@ -92,75 +101,103 @@ func worker(ctx context.Context,
 }
 
 // searchEntry searches a single entry for pattern matches
+// returns slice of matches (empty if no matches, or single error result)
 func searchEntry(ctx context.Context,
 	s *HARSearcher,
 	index int,
 	pattern compiledPattern,
 	opts SearchOptions,
-	buf *[]byte) *SearchResult {
+	buf *[]byte) []*SearchResult {
+
+	var results []*SearchResult
 
 	// step 1: metadata search (no i/o - instant lookup)
 	metadata, err := s.streamer.GetMetadata(index)
 	if err != nil {
-		return &SearchResult{Index: index, Error: err}
+		return []*SearchResult{{Index: index, Error: err}}
 	}
 
-	// search metadata fields with early return to skip expensive entry loading
+	// search metadata fields
 	if result := searchMetadata(index, metadata, pattern); result != nil {
-		return result
+		results = append(results, result)
+		if opts.FirstMatchOnly && !opts.SearchResponseBody {
+			return results // early return unless deep search required
+		}
 	}
 
-	// step 2: only load full entry if metadata didn't match (lazy loading)
+	// decide whether to load full entry
+	// skip loading if: firstmatchonly=true AND already matched AND no deep search required
+	needsFullEntry := len(results) == 0 || !opts.FirstMatchOnly || opts.SearchResponseBody
+
+	if !needsFullEntry {
+		return results
+	}
+
+	// step 2: load full entry for header/body searches (if needed)
 	req := NewReadRequestBuilder().
 		WithOffset(metadata.FileOffset).
 		WithLength(metadata.Length).
-		WithBuffer(buf). // pooled buffer for efficiency
+		WithBuffer(buf).
 		Build()
 
-	// step 3: read entry using pooled buffer
 	resp := s.reader.Read(ctx, req)
 	if resp.GetError() != nil {
-		return &SearchResult{Index: index, Error: resp.GetError()}
+		return []*SearchResult{{Index: index, Error: resp.GetError()}}
 	}
 
 	entry := resp.GetEntry()
 	atomic.AddInt64(&s.stats.bytesSearched, resp.GetBytesRead())
 
-	// step 4: search request headers
+	// step 3: search request headers
 	if result := searchHeaders(index, entry.Request.Headers, pattern, "request.headers."); result != nil {
-		return result
+		results = append(results, result)
+		if opts.FirstMatchOnly && !opts.SearchResponseBody {
+			return results
+		}
 	}
 
-	// step 5: search query params
+	// step 4: search query params
 	if result := searchHeaders(index, entry.Request.QueryParams, pattern, "query.param."); result != nil {
-		return result
+		results = append(results, result)
+		if opts.FirstMatchOnly && !opts.SearchResponseBody {
+			return results
+		}
 	}
 
-	// step 6: search cookies
+	// step 5: search cookies
 	if result := searchCookies(index, entry.Request.Cookies, pattern); result != nil {
-		return result
+		results = append(results, result)
+		if opts.FirstMatchOnly && !opts.SearchResponseBody {
+			return results
+		}
 	}
 
-	// step 7: search request body
+	// step 6: search request body
 	if entry.Request.Body.Content != "" {
 		if matches(entry.Request.Body.Content, pattern) {
-			return &SearchResult{Index: index, Field: "request.body"}
+			results = append(results, &SearchResult{Index: index, Field: "request.body"})
+			if opts.FirstMatchOnly && !opts.SearchResponseBody {
+				return results
+			}
 		}
 	}
 
-	// step 8: search response headers
+	// step 7: search response headers
 	if result := searchHeaders(index, entry.Response.Headers, pattern, "response.headers."); result != nil {
-		return result
+		results = append(results, result)
+		if opts.FirstMatchOnly && !opts.SearchResponseBody {
+			return results
+		}
 	}
 
-	// step 9: search response body (optional - deep search)
+	// step 8: ALWAYS search response body if deep search enabled (guarantees bodies are checked)
 	if opts.SearchResponseBody && entry.Response.Body.Content != "" {
 		if matches(entry.Response.Body.Content, pattern) {
-			return &SearchResult{Index: index, Field: "response.body"}
+			results = append(results, &SearchResult{Index: index, Field: "response.body"})
 		}
 	}
 
-	return nil // no match
+	return results
 }
 
 // searchHeaders checks if any header name or value matches the pattern

@@ -11,10 +11,11 @@ type JSONGenerator struct {
 	dict     *Dictionary
 	maxDepth int
 	maxNodes int
+	rng      *rand.Rand
 }
 
 // NewJSONGenerator creates a new JSON generator
-func NewJSONGenerator(dict *Dictionary, maxDepth, maxNodes int) *JSONGenerator {
+func NewJSONGenerator(dict *Dictionary, maxDepth, maxNodes int, rng *rand.Rand) *JSONGenerator {
 	if maxDepth == 0 {
 		maxDepth = 3
 	}
@@ -26,6 +27,7 @@ func NewJSONGenerator(dict *Dictionary, maxDepth, maxNodes int) *JSONGenerator {
 		dict:     dict,
 		maxDepth: maxDepth,
 		maxNodes: maxNodes,
+		rng:      rng,
 	}
 }
 
@@ -34,22 +36,22 @@ func (jg *JSONGenerator) GenerateObject(depth int) map[string]interface{} {
 	// at max depth, just create simple key-value pair
 	if depth >= jg.maxDepth {
 		return map[string]interface{}{
-			jg.dict.RandomWord(): jg.dict.RandomWord(),
+			jg.dict.RandomWord(jg.rng): jg.dict.RandomWord(jg.rng),
 		}
 	}
 
 	// determine how many nodes at this level (1 to maxNodes)
-	nodeCount := rand.Intn(jg.maxNodes) + 1
+	nodeCount := jg.rng.Intn(jg.maxNodes) + 1
 	obj := make(map[string]interface{}, nodeCount)
 
 	for i := 0; i < nodeCount; i++ {
-		key := jg.dict.RandomWord()
+		key := jg.dict.RandomWord(jg.rng)
 
 		// 30% chance of nesting deeper if not at max depth
-		if depth < jg.maxDepth-1 && rand.Float32() < 0.3 {
+		if depth < jg.maxDepth-1 && jg.rng.Float32() < 0.3 {
 			obj[key] = jg.GenerateObject(depth + 1)
 		} else {
-			obj[key] = jg.dict.RandomWord()
+			obj[key] = jg.dict.RandomWord(jg.rng)
 		}
 	}
 
@@ -61,12 +63,13 @@ func (jg *JSONGenerator) GenerateObject(depth int) map[string]interface{} {
 func (jg *JSONGenerator) InjectTerm(obj map[string]interface{}, term string) string {
 	if len(obj) == 0 {
 		// empty object, just add the term
-		obj[jg.dict.RandomWord()] = term
-		return jg.dict.RandomWord()
+		key := jg.dict.RandomWord(jg.rng)
+		obj[key] = term
+		return key
 	}
 
 	// randomly choose to inject as key or value
-	injectAsKey := rand.Float32() < 0.5
+	injectAsKey := jg.rng.Float32() < 0.5
 
 	// get all keys
 	keys := make([]string, 0, len(obj))
@@ -77,7 +80,7 @@ func (jg *JSONGenerator) InjectTerm(obj map[string]interface{}, term string) str
 	if injectAsKey {
 		// replace a random key with the term
 		// (keep the original value)
-		oldKey := keys[rand.Intn(len(keys))]
+		oldKey := keys[jg.rng.Intn(len(keys))]
 		value := obj[oldKey]
 		delete(obj, oldKey)
 		obj[term] = value
@@ -85,7 +88,7 @@ func (jg *JSONGenerator) InjectTerm(obj map[string]interface{}, term string) str
 	}
 
 	// inject as value
-	targetKey := keys[rand.Intn(len(keys))]
+	targetKey := keys[jg.rng.Intn(len(keys))]
 
 	// if the value is a nested object, recurse
 	if nestedObj, ok := obj[targetKey].(map[string]interface{}); ok {
@@ -108,16 +111,16 @@ func (jg *JSONGenerator) InjectTermIntoNewObject(term string) (map[string]interf
 // GenerateArray creates a random JSON array with dictionary words or objects
 func (jg *JSONGenerator) GenerateArray(depth int, length int) []interface{} {
 	if length == 0 {
-		length = rand.Intn(5) + 1
+		length = jg.rng.Intn(5) + 1
 	}
 
 	arr := make([]interface{}, length)
 	for i := 0; i < length; i++ {
 		// 30% chance of nested object, 70% simple value
-		if depth < jg.maxDepth && rand.Float32() < 0.3 {
+		if depth < jg.maxDepth && jg.rng.Float32() < 0.3 {
 			arr[i] = jg.GenerateObject(depth + 1)
 		} else {
-			arr[i] = jg.dict.RandomWord()
+			arr[i] = jg.dict.RandomWord(jg.rng)
 		}
 	}
 
@@ -143,11 +146,11 @@ func (jg *JSONGenerator) GenerateRealisticValue(fieldName string) string {
 	// check if we have common values for this field
 	lowerField := strings.ToLower(fieldName)
 	if values, ok := commonFieldValues[lowerField]; ok {
-		return values[rand.Intn(len(values))]
+		return values[jg.rng.Intn(len(values))]
 	}
 
 	// default to random word
-	return jg.dict.RandomWord()
+	return jg.dict.RandomWord(jg.rng)
 }
 
 // GenerateRealisticObject creates a more realistic JSON object with common field patterns
@@ -155,28 +158,28 @@ func (jg *JSONGenerator) GenerateRealisticObject(pattern string) map[string]inte
 	switch pattern {
 	case "user":
 		return map[string]interface{}{
-			"id":       fmt.Sprintf("%d", rand.Intn(10000)),
-			"username": jg.dict.RandomWord() + jg.dict.RandomWord(),
-			"email":    jg.dict.RandomWord() + "@example.com",
+			"id":       fmt.Sprintf("%d", jg.rng.Intn(10000)),
+			"username": jg.dict.RandomWord(jg.rng) + jg.dict.RandomWord(jg.rng),
+			"email":    jg.dict.RandomWord(jg.rng) + "@example.com",
 			"profile": map[string]interface{}{
-				"firstName": jg.dict.RandomWord(),
-				"lastName":  jg.dict.RandomWord(),
-				"age":       rand.Intn(80) + 18,
+				"firstName": jg.dict.RandomWord(jg.rng),
+				"lastName":  jg.dict.RandomWord(jg.rng),
+				"age":       jg.rng.Intn(80) + 18,
 			},
 		}
 	case "product":
 		return map[string]interface{}{
-			"id":          fmt.Sprintf("prod-%d", rand.Intn(1000)),
-			"name":        jg.dict.RandomWord() + " " + jg.dict.RandomWord(),
-			"price":       rand.Float64() * 1000,
-			"category":    jg.dict.RandomWord(),
-			"inStock":     rand.Float32() < 0.8,
-			"description": strings.Join(jg.dict.RandomWords(10), " "),
+			"id":          fmt.Sprintf("prod-%d", jg.rng.Intn(1000)),
+			"name":        jg.dict.RandomWord(jg.rng) + " " + jg.dict.RandomWord(jg.rng),
+			"price":       jg.rng.Float64() * 1000,
+			"category":    jg.dict.RandomWord(jg.rng),
+			"inStock":     jg.rng.Float32() < 0.8,
+			"description": strings.Join(jg.dict.RandomWords(10, jg.rng), " "),
 		}
 	case "api_response":
 		return map[string]interface{}{
 			"status":  "success",
-			"message": strings.Join(jg.dict.RandomWords(5), " "),
+			"message": strings.Join(jg.dict.RandomWords(5, jg.rng), " "),
 			"data":    jg.GenerateObject(1),
 		}
 	default:
