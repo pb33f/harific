@@ -63,6 +63,7 @@ func formatURL(fullURL string, terminalWidth int) string {
 		path = path + "?" + u.RawQuery
 	}
 
+	// 10 = borderPadding + column spacing
 	availableWidth := terminalWidth - methodColumnWidth - statusColumnWidth - durationColumnWidth - 10
 	if availableWidth < minURLColumnWidth {
 		availableWidth = minURLColumnWidth
@@ -114,16 +115,4 @@ func formatDuration(durationMs float64) string {
 		seconds := int(d.Seconds()) - (minutes * 60)
 		return fmt.Sprintf("%dm%ds", minutes, seconds)
 	}
-}
-
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-
-	return s[:maxLen-3] + "..."
 }

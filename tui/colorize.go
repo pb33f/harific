@@ -1,17 +1,13 @@
 package tui
 
 import (
-    "regexp"
-    "strconv"
     "strings"
 
     "github.com/charmbracelet/bubbles/v2/table"
 )
 
-// pre-compiled regex for status code matching (compiled once at startup)
-var statusCodeRegex = regexp.MustCompile(`\s(\d{3})\s`)
 
-// pre-rendered method strings (populated in init() after styles are ready)
+// pre-rendered method strings to avoid repeated style.Render() calls in hot path
 var (
     renderedGET    string
     renderedQUERY  string
@@ -22,7 +18,6 @@ var (
 )
 
 func init() {
-    // initialize rendered method strings after package variables are ready
     renderedGET = StyleMethodGreen.Render("GET")
     renderedQUERY = StyleMethodGreen.Render("QUERY")
     renderedPATCH = StyleMethodYellow.Render("PATCH")
@@ -31,40 +26,32 @@ func init() {
     renderedDELETE = StyleMethodRed.Render("DELETE")
 }
 
-// ColorizeHARTableOutput adds color codes to the rendered table output
-// following the vacuum pattern of post-processing the table.View() output
+// colorizes table output following vacuum pattern - skips selected row to preserve background
 func ColorizeHARTableOutput(tableView string, cursor int, rows []table.Row) string {
     lines := strings.Split(tableView, "\n")
 
-    // Build unique identifier from selected row (method + URL + status + duration)
-    // This handles cases where the table doesn't apply background styling when scrolled
+    // build unique identifier from selected row to handle cases where table background fails when scrolled
     var selectedIdentifier string
     if cursor >= 0 && cursor < len(rows) && len(rows[cursor]) >= 4 {
-        // Combine all columns to create unique identifier that minimizes false matches
         selectedIdentifier = rows[cursor][0] + rows[cursor][1] + rows[cursor][2] + rows[cursor][3]
     }
 
-    // Also check for pink background ANSI code (works when selection is at top/bottom of viewport)
+    // ANSI escape sequence for pink background (matches table selected style from styles.go)
     selectedLineMarker := "\x1b[1;38;5;201;48;2;42;26;42m"
 
     var result strings.Builder
-    result.Grow(len(tableView)) // pre-allocate to avoid reallocations during string building
+    // estimate output size: input + ANSI overhead per line (~40 bytes per colorized line)
+    estimatedSize := len(tableView) + (len(lines) * 40)
+    result.Grow(estimatedSize)
 
     for i, line := range lines {
-        // Check if this line is selected (either has background marker OR matches all column data)
         isSelectedLine := strings.Contains(line, selectedLineMarker) ||
             (selectedIdentifier != "" && strings.Contains(line, selectedIdentifier))
 
-        // Only colorize non-selected rows (matching Vacuum pattern)
-        // Selected rows are already styled by the table with pink background
+        // skip header row (i=0) and selected rows (already styled by table)
         if i >= 1 && !isSelectedLine {
-            // Colorize HTTP methods
             line = colorizeHTTPMethods(line)
-
-            // Colorize status codes
             line = colorizeStatusCodes(line)
-
-            // Colorize durations
             line = colorizeDurations(line)
         }
 
@@ -77,80 +64,85 @@ func ColorizeHARTableOutput(tableView string, cursor int, rows []table.Row) stri
     return result.String()
 }
 
-// colorizeHTTPMethods applies colors to HTTP method names using pre-rendered strings
+// colorizes HTTP method using pre-rendered strings with early-return optimization
 func colorizeHTTPMethods(line string) string {
-    // use pre-rendered strings to avoid calling Render() on every line
-    line = strings.ReplaceAll(line, " GET ", " "+renderedGET+" ")
-    line = strings.ReplaceAll(line, " QUERY ", " "+renderedQUERY+" ")
-    line = strings.ReplaceAll(line, " PATCH ", " "+renderedPATCH+" ")
-    line = strings.ReplaceAll(line, " PUT ", " "+renderedPUT+" ")
-    line = strings.ReplaceAll(line, " POST ", " "+renderedPOST+" ")
-    line = strings.ReplaceAll(line, " DELETE ", " "+renderedDELETE+" ")
-    // HEAD, OPTIONS, TRACE remain default (no colorization)
+    // ordered by frequency: GET most common, QUERY least common
+    if strings.Contains(line, " GET ") {
+        return strings.Replace(line, " GET ", " "+renderedGET+" ", 1)
+    }
+    if strings.Contains(line, " POST ") {
+        return strings.Replace(line, " POST ", " "+renderedPOST+" ", 1)
+    }
+    if strings.Contains(line, " PUT ") {
+        return strings.Replace(line, " PUT ", " "+renderedPUT+" ", 1)
+    }
+    if strings.Contains(line, " DELETE ") {
+        return strings.Replace(line, " DELETE ", " "+renderedDELETE+" ", 1)
+    }
+    if strings.Contains(line, " PATCH ") {
+        return strings.Replace(line, " PATCH ", " "+renderedPATCH+" ", 1)
+    }
+    if strings.Contains(line, " QUERY ") {
+        return strings.Replace(line, " QUERY ", " "+renderedQUERY+" ", 1)
+    }
     return line
 }
 
-// colorizeStatusCodes applies colors to status codes using regex
+// colorizes 4xx (yellow) and 5xx (red) status codes using manual byte scanning
 func colorizeStatusCodes(line string) string {
-    // use pre-compiled regex to find 3-digit status code
-    matches := statusCodeRegex.FindStringSubmatch(line)
-    if len(matches) < 2 {
-        return line // no status code found
-    }
+    // find " NNN " pattern (3 digits surrounded by spaces)
+    for i := 0; i < len(line)-4; i++ {
+        if line[i] == ' ' &&
+            line[i+1] >= '0' && line[i+1] <= '9' &&
+            line[i+2] >= '0' && line[i+2] <= '9' &&
+            line[i+3] >= '0' && line[i+3] <= '9' &&
+            line[i+4] == ' ' {
 
-    statusStr := matches[1] // "404", "500", etc.
-    statusCode, err := strconv.Atoi(statusStr)
-    if err != nil {
+            // parse status code from digits
+            statusCode := int(line[i+1]-'0')*100 + int(line[i+2]-'0')*10 + int(line[i+3]-'0')
+
+            if statusCode >= 400 && statusCode < 500 {
+                statusStr := line[i+1 : i+4]
+                colored := " " + StyleStatus4xx.Render(statusStr) + " "
+                return line[:i] + colored + line[i+5:]
+            } else if statusCode >= 500 && statusCode < 600 {
+                statusStr := line[i+1 : i+4]
+                colored := " " + StyleStatus5xx.Render(statusStr) + " "
+                return line[:i] + colored + line[i+5:]
+            }
+            return line
+        }
+    }
+    return line
+}
+
+// colorizes duration values in last column with faint style
+func colorizeDurations(line string) string {
+    lastSpaceIdx := strings.LastIndexByte(line, ' ')
+    if lastSpaceIdx == -1 {
         return line
     }
 
-    // colorize based on range
-    if statusCode >= 400 && statusCode < 500 {
-        // 4xx - yellow
-        colored := " " + StyleStatus4xx.Render(statusStr) + " "
-        line = strings.Replace(line, " "+statusStr+" ", colored, 1)
-    } else if statusCode >= 500 && statusCode < 600 {
-        // 5xx - red
-        colored := " " + StyleStatus5xx.Render(statusStr) + " "
-        line = strings.Replace(line, " "+statusStr+" ", colored, 1)
+    durationPart := line[lastSpaceIdx+1:]
+    if isDuration(durationPart) {
+        styledDuration := StyleDurationFaint.Render(durationPart)
+        return line[:lastSpaceIdx+1] + styledDuration
     }
 
     return line
 }
 
-// colorizeDurations applies faint style to duration values
-func colorizeDurations(line string) string {
-    // Durations end with "ms" or "s" and appear in the last column
-    // We need to find patterns like "123ms", "1.23s", "571ms", etc.
-    // Must be careful not to match URLs or paths that end with "s"
-
-    // Find duration patterns - common formats: "12.34s", "123ms", "1234ms", "571ms"
-    if strings.Contains(line, "ms") || strings.Contains(line, "s") {
-        // Split by spaces to find duration tokens
-        parts := strings.Split(line, " ")
-        for i, part := range parts {
-            if isDuration(part) {
-                parts[i] = StyleDurationFaint.Render(part)
-            }
-        }
-        line = strings.Join(parts, " ")
-    }
-
-    return line
-}
-
-// isDuration checks if a string is a valid duration (not a path or other text)
+// isDuration validates if string is a time duration (e.g., "150ms", "2.5s")
+// rejects URLs, paths, and random identifiers by requiring digit-only numeric portion
 func isDuration(s string) bool {
     if s == "" {
         return false
     }
 
-    // Must start with a digit
     if s[0] < '0' || s[0] > '9' {
         return false
     }
 
-    // Check for valid time unit suffixes: ms, s, m, h
     var valueStr string
     if strings.HasSuffix(s, "ms") {
         valueStr = strings.TrimSuffix(s, "ms")
@@ -161,25 +153,23 @@ func isDuration(s string) bool {
     } else if strings.HasSuffix(s, "h") {
         valueStr = strings.TrimSuffix(s, "h")
     } else {
-        return false // No valid time unit suffix
+        return false
     }
 
-    // Value must not be empty
     if len(valueStr) == 0 {
         return false
     }
 
-    // Value should only contain digits and at most one decimal point
-    // This excludes paths like "/api/users" or identifiers like "5u7hmsls"
+    // reject paths ("/api/users") and identifiers ("5u7hmsls")
     dotCount := 0
     for _, c := range valueStr {
         if c == '.' {
             dotCount++
             if dotCount > 1 {
-                return false // Multiple dots not valid
+                return false
             }
         } else if c < '0' || c > '9' {
-            return false // Non-digit character found (excludes paths and identifiers)
+            return false
         }
     }
 
