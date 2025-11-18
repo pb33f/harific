@@ -39,7 +39,7 @@ func (m *HARViewModel) renderTableView() string {
     builder.WriteString(m.renderTitle())
     builder.WriteString("\n")
 
-    // Colorize table output after rendering
+    // post-process table view to add colorization (vacuum pattern)
     tableView := m.table.View()
     colorizedTable := ColorizeHARTableOutput(tableView, m.table.Cursor(), m.rows)
     builder.WriteString(colorizedTable)
@@ -56,7 +56,7 @@ func (m *HARViewModel) renderSplitView() string {
     builder.WriteString(m.renderTitle())
     builder.WriteString("\n")
 
-    // Colorize table output after rendering
+    // post-process table view to add colorization (vacuum pattern)
     tableView := m.table.View()
     colorizedTable := ColorizeHARTableOutput(tableView, m.table.Cursor(), m.rows)
     builder.WriteString(colorizedTable)
@@ -129,21 +129,16 @@ func (m *HARViewModel) renderSplitPanel() string {
         return m.renderEmptyPanel()
     }
 
-    // Each panel gets exactly half the width (borders are included in lipgloss Width)
-    panelWidth := m.width / 2
-    panelHeight := m.height/2 - ((tableVerticalPadding / 2) - 1)
+    panelWidth, panelHeight := m.calculatePanelDimensions()
 
-    // Create base style with fixed dimensions
     baseStyle := lipgloss.NewStyle().
         Width(panelWidth).
         Height(panelHeight).
         BorderStyle(lipgloss.NormalBorder())
 
-    // Create focused and unfocused versions
     focusedBorderStyle := baseStyle.BorderForeground(RGBBlue)
     unfocusedBorderStyle := baseStyle.BorderForeground(lipgloss.Color("240"))
 
-    // Apply focused border to the active viewport
     leftBorderStyle := unfocusedBorderStyle
     rightBorderStyle := unfocusedBorderStyle
 
@@ -153,7 +148,6 @@ func (m *HARViewModel) renderSplitPanel() string {
         rightBorderStyle = focusedBorderStyle
     }
 
-    // Render panels with explicit height enforcement
     leftPanel := leftBorderStyle.Render(m.requestViewport.View())
     rightPanel := rightBorderStyle.Render(m.responseViewport.View())
 

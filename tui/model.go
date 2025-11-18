@@ -215,10 +215,7 @@ func (m *HARViewModel) View() string {
 func (m *HARViewModel) initializeTable() {
     m.buildTableRows()
 
-    tableHeight := m.height - tableVerticalPadding
-    if m.splitVisible {
-        tableHeight = (m.height - tableVerticalPadding) / 2
-    }
+    tableHeight := m.calculateTableHeight()
 
     m.table = table.New(
         table.WithColumns(m.columns),
@@ -229,28 +226,35 @@ func (m *HARViewModel) initializeTable() {
     )
 
     m.table = ApplyTableStyles(m.table)
-
-    // Adjust column widths based on terminal width
     m.adjustColumnWidths()
 }
 
 func (m *HARViewModel) updateTableDimensions() {
-    tableHeight := m.height - tableVerticalPadding
-    if m.splitVisible {
-        tableHeight = (m.height - tableVerticalPadding) / 2
-    }
+    tableHeight := m.calculateTableHeight()
     m.table.SetHeight(tableHeight)
     m.table.SetWidth(m.width)
 
     m.adjustColumnWidths()
 }
 
-func (m *HARViewModel) updateViewportDimensions() {
-    // Calculate panel dimensions (must match renderSplitPanel)
-    panelWidth := m.width / 2
-    panelHeight := m.height/2 - ((tableVerticalPadding / 2) - 1)
+func (m *HARViewModel) calculateTableHeight() int {
+    tableHeight := m.height - tableVerticalPadding
+    if m.splitVisible {
+        tableHeight /= 2
+    }
+    return tableHeight
+}
 
-    // Account for borders (2 chars wide per panel, 2 chars tall)
+func (m *HARViewModel) calculatePanelDimensions() (panelWidth, panelHeight int) {
+    panelWidth = m.width / 2
+    panelHeight = m.height/2 - ((tableVerticalPadding / 2) - 1)
+    return panelWidth, panelHeight
+}
+
+func (m *HARViewModel) updateViewportDimensions() {
+    panelWidth, panelHeight := m.calculatePanelDimensions()
+
+    // subtract border width (2 chars per panel)
     viewportWidth := panelWidth - 2
     viewportHeight := panelHeight - 2
 
@@ -319,4 +323,12 @@ func (m *HARViewModel) adjustColumnWidths() {
     m.columns[3].Width = durationColumnWidth
 
     m.table.SetColumns(m.columns)
+}
+
+// Cleanup releases resources when the model is destroyed
+func (m *HARViewModel) Cleanup() error {
+    if m.streamer != nil {
+        return m.streamer.Close()
+    }
+    return nil
 }
