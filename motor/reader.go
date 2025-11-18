@@ -137,7 +137,7 @@ func (r *DefaultEntryReader) Read(ctx context.Context, req ReadRequest) ReadResp
 	return resp
 }
 
-// readmetadata with o(1) lookup using offset index map
+// fast metadata lookup without loading full entry from disk
 func (r *DefaultEntryReader) ReadMetadata(offset int64) (*EntryMetadata, error) {
 	if meta, ok := r.offsetIndex[offset]; ok {
 		return meta, nil
@@ -200,7 +200,7 @@ func (s *skipLeadingReader) Read(p []byte) (n int, err error) {
 	return s.reader.Read(p)
 }
 
-// readAt provides backward compatibility (deprecated, use read() instead)
+// deprecated: use Read() instead
 func (r *DefaultEntryReader) ReadAt(offset int64, length int64) (*harhar.Entry, error) {
 	req := NewReadRequestBuilder().
 		WithOffset(offset).
@@ -214,7 +214,7 @@ func (r *DefaultEntryReader) ReadAt(offset int64, length int64) (*harhar.Entry, 
 	return resp.GetEntry(), nil
 }
 
-// streamresponsebody provides backward compatibility
+// deprecated: use Read() with entry.Response.Body.Content
 func (r *DefaultEntryReader) StreamResponseBody(offset int64) (io.ReadCloser, error) {
 	meta, err := r.ReadMetadata(offset)
 	if err != nil {
@@ -233,7 +233,7 @@ func (r *DefaultEntryReader) StreamResponseBody(offset int64) (io.ReadCloser, er
 	return io.NopCloser(strings.NewReader(entry.Response.Body.Content)), nil
 }
 
-// readpartial provides backward compatibility
+// deprecated: use Read() and extract fields manually
 func (r *DefaultEntryReader) ReadPartial(offset int64, fields []string) (map[string]interface{}, error) {
 	meta, err := r.ReadMetadata(offset)
 	if err != nil {
