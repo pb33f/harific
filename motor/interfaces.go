@@ -66,17 +66,36 @@ type IndexBuilder interface {
 
 // EntryReader reads individual entries from specific file offsets
 type EntryReader interface {
-    // ReadAt reads a complete entry at the given offset
-    ReadAt(offset int64, length int64) (*harhar.Entry, error)
+	// Read reads an entry using a request message
+	Read(ctx context.Context, req ReadRequest) ReadResponse
 
-    // ReadPartial reads only specific fields from an entry
-    ReadPartial(offset int64, fields []string) (map[string]interface{}, error)
+	// ReadMetadata reads only the metadata without parsing the full entry
+	ReadMetadata(offset int64) (*EntryMetadata, error)
 
-    // StreamResponseBody streams the response body without loading it fully
-    StreamResponseBody(offset int64) (io.ReadCloser, error)
+	// Close releases all resources including file handles
+	Close() error
+}
 
-    // ReadMetadata reads only the metadata without parsing the full entry
-    ReadMetadata(offset int64) (*EntryMetadata, error)
+// ReadRequest provides read-only access to entry read parameters
+type ReadRequest interface {
+	GetOffset() int64
+	GetLength() int64
+	GetBuffer() *[]byte // may be nil (fallback to direct read)
+}
+
+// ReadRequestBuilder constructs ReadRequest instances with fluent api
+type ReadRequestBuilder interface {
+	WithOffset(offset int64) ReadRequestBuilder
+	WithLength(length int64) ReadRequestBuilder
+	WithBuffer(buf *[]byte) ReadRequestBuilder
+	Build() ReadRequest
+}
+
+// ReadResponse provides read-only access to read results
+type ReadResponse interface {
+	GetEntry() *harhar.Entry
+	GetBytesRead() int64
+	GetError() error
 }
 
 // Cache provides optional caching of parsed entries
@@ -93,4 +112,13 @@ type Cache interface {
 
     // Size returns the current number of cached entries
     Size() int
+}
+
+// Searcher provides efficient search capabilities across har entries
+type Searcher interface {
+	// Search executes a search and returns results via channel
+	Search(ctx context.Context, pattern string, opts SearchOptions) (<-chan []SearchResult, error)
+
+	// Stats returns current search statistics
+	Stats() SearchStats
 }

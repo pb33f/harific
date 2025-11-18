@@ -1,6 +1,9 @@
 package motor
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -11,51 +14,153 @@ import (
 )
 
 type DefaultEntryReader struct {
-	filePath string
-	file     *os.File
-	index    *Index
-	mu       sync.Mutex
+	filePath    string
+	filePool    *sync.Pool               // pool of file handles for concurrent access
+	index       *Index
+	offsetIndex map[int64]*EntryMetadata // o(1) metadata lookup by offset
+	pooledFiles []*os.File               // track pooled files for cleanup
+	mu          sync.Mutex               // protects pooledFiles slice
+}
+
+// pooledFile wraps *os.File with thread-safe registration
+type pooledFile struct {
+	file   *os.File
+	reader *DefaultEntryReader
+	once   sync.Once
+}
+
+func (pf *pooledFile) register() {
+	pf.once.Do(func() {
+		pf.reader.mu.Lock()
+		pf.reader.pooledFiles = append(pf.reader.pooledFiles, pf.file)
+		pf.reader.mu.Unlock()
+	})
+}
+
+func (pf *pooledFile) Seek(offset int64, whence int) (int64, error) {
+	return pf.file.Seek(offset, whence)
+}
+
+func (pf *pooledFile) Read(p []byte) (n int, err error) {
+	return pf.file.Read(p)
 }
 
 func NewEntryReader(filePath string, index *Index) (*DefaultEntryReader, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+	// pre-build offset index for o(1) metadata lookups during search
+	offsetIndex := make(map[int64]*EntryMetadata, len(index.Entries))
+	for i := range index.Entries {
+		offsetIndex[index.Entries[i].FileOffset] = index.Entries[i]
 	}
 
-	return &DefaultEntryReader{
-		filePath: filePath,
-		file:     file,
-		index:    index,
-	}, nil
+	reader := &DefaultEntryReader{
+		filePath:    filePath,
+		index:       index,
+		offsetIndex: offsetIndex,
+		pooledFiles: make([]*os.File, 0, 16),
+	}
+
+	reader.filePool = &sync.Pool{
+		New: func() interface{} {
+			file, err := os.Open(filePath)
+			if err != nil {
+				return nil
+			}
+
+			pf := &pooledFile{
+				file:   file,
+				reader: reader,
+			}
+			pf.register() // thread-safe registration using sync.once
+			return pf
+		},
+	}
+
+	return reader, nil
 }
 
-func (r *DefaultEntryReader) ReadAt(offset int64, length int64) (*harhar.Entry, error) {
+func (r *DefaultEntryReader) Read(ctx context.Context, req ReadRequest) ReadResponse {
+	resp := newReadResponse()
+
+	// each worker gets isolated file handle from pool (no mutex contention)
+	pooledHandle := r.filePool.Get()
+	if pooledHandle == nil {
+		resp.err = fmt.Errorf("failed to get file handle from pool")
+		return resp
+	}
+
+	pf, ok := pooledHandle.(*pooledFile)
+	if !ok || pf == nil {
+		resp.err = fmt.Errorf("invalid file handle type")
+		return resp
+	}
+	defer r.filePool.Put(pf)
+
+	_, err := pf.Seek(req.GetOffset(), io.SeekStart)
+	if err != nil {
+		resp.err = fmt.Errorf("seek failed: %w", err)
+		return resp
+	}
+
+	limitReader := io.LimitReader(pf, req.GetLength())
+
+	var jsonReader io.Reader
+
+	if buf := req.GetBuffer(); buf != nil {
+		// search path: use pooled buffer for maximum efficiency
+		if req.GetLength() > int64(cap(*buf)) {
+			*buf = make([]byte, req.GetLength())
+		}
+
+		n, err := io.ReadFull(limitReader, (*buf)[:req.GetLength()])
+		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+			resp.err = fmt.Errorf("read failed: %w", err)
+			return resp
+		}
+		resp.bytesRead = int64(n)
+		jsonReader = bytes.NewReader((*buf)[:n])
+	} else {
+		// fallback path: tui/serve use cases (not search)
+		// direct read without buffer - less efficient but backward compatible
+		jsonReader = limitReader
+		resp.bytesRead = req.GetLength()
+	}
+
+	skipReader := &skipLeadingReader{reader: jsonReader}
+	decoder := json.NewDecoder(skipReader)
+	var entry harhar.Entry
+	if err := decoder.Decode(&entry); err != nil {
+		resp.err = fmt.Errorf("decode failed: %w", err)
+		return resp
+	}
+
+	resp.entry = &entry
+	return resp
+}
+
+// readmetadata with o(1) lookup using offset index map
+func (r *DefaultEntryReader) ReadMetadata(offset int64) (*EntryMetadata, error) {
+	if meta, ok := r.offsetIndex[offset]; ok {
+		return meta, nil
+	}
+	return nil, fmt.Errorf("metadata not found for offset %d", offset)
+}
+
+// close releases all file handles in the pool
+func (r *DefaultEntryReader) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if length <= 0 {
-		return nil, fmt.Errorf("length must be > 0, got %d (offset not found in index?)", length)
+	var firstErr error
+	for _, file := range r.pooledFiles {
+		if err := file.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
-
-	if _, err := r.file.Seek(offset, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("failed to seek to offset %d: %w", offset, err)
-	}
-
-	limitedReader := io.LimitReader(r.file, length)
-
-	// json array entries are comma-separated; when seeking to an offset mid-array, skip the separator to get valid json
-	skipReader := &skipLeadingReader{reader: limitedReader}
-	decoder := newHARDecoder(skipReader)
-
-	var entry harhar.Entry
-	if err := decoder.Decode(&entry); err != nil {
-		return nil, fmt.Errorf("failed to decode entry: %w", err)
-	}
-
-	return &entry, nil
+	r.pooledFiles = nil
+	return firstErr
 }
 
+// skipLeadingReader skips json array separators (commas, whitespace)
 type skipLeadingReader struct {
 	reader    io.Reader
 	skipped   bool
@@ -65,14 +170,15 @@ type skipLeadingReader struct {
 func (s *skipLeadingReader) Read(p []byte) (n int, err error) {
 	if !s.skipped {
 		s.skipped = true
-		buf := make([]byte, 64)
-		n, err := s.reader.Read(buf)
+		var buf [64]byte // stack allocated
+		n, err := s.reader.Read(buf[:])
 		if err != nil && err != io.EOF {
 			return 0, err
 		}
 
 		startIdx := 0
-		for startIdx < n && (buf[startIdx] == ',' || buf[startIdx] == ' ' || buf[startIdx] == '\n' || buf[startIdx] == '\r' || buf[startIdx] == '\t') {
+		for startIdx < n && (buf[startIdx] == ',' || buf[startIdx] == ' ' ||
+			buf[startIdx] == '\n' || buf[startIdx] == '\r' || buf[startIdx] == '\t') {
 			startIdx++
 		}
 
@@ -94,19 +200,52 @@ func (s *skipLeadingReader) Read(p []byte) (n int, err error) {
 	return s.reader.Read(p)
 }
 
-func (r *DefaultEntryReader) ReadPartial(offset int64, fields []string) (map[string]interface{}, error) {
-	length := r.findLengthForOffset(offset)
-	if length == 0 {
-		return nil, fmt.Errorf("no entry found at offset %d", offset)
+// readAt provides backward compatibility (deprecated, use read() instead)
+func (r *DefaultEntryReader) ReadAt(offset int64, length int64) (*harhar.Entry, error) {
+	req := NewReadRequestBuilder().
+		WithOffset(offset).
+		WithLength(length).
+		Build()
+
+	resp := r.Read(context.Background(), req)
+	if resp.GetError() != nil {
+		return nil, resp.GetError()
+	}
+	return resp.GetEntry(), nil
+}
+
+// streamresponsebody provides backward compatibility
+func (r *DefaultEntryReader) StreamResponseBody(offset int64) (io.ReadCloser, error) {
+	meta, err := r.ReadMetadata(offset)
+	if err != nil {
+		return nil, err
 	}
 
-	entry, err := r.ReadAt(offset, length)
+	entry, err := r.ReadAt(offset, meta.Length)
+	if err != nil {
+		return nil, err
+	}
+
+	if entry.Response.Body.Content == "" {
+		return io.NopCloser(strings.NewReader("")), nil
+	}
+
+	return io.NopCloser(strings.NewReader(entry.Response.Body.Content)), nil
+}
+
+// readpartial provides backward compatibility
+func (r *DefaultEntryReader) ReadPartial(offset int64, fields []string) (map[string]interface{}, error) {
+	meta, err := r.ReadMetadata(offset)
+	if err != nil {
+		return nil, err
+	}
+
+	entry, err := r.ReadAt(offset, meta.Length)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make(map[string]interface{})
-
 	for _, field := range fields {
 		switch field {
 		case "request":
@@ -123,49 +262,4 @@ func (r *DefaultEntryReader) ReadPartial(offset int64, fields []string) (map[str
 	}
 
 	return result, nil
-}
-
-func (r *DefaultEntryReader) StreamResponseBody(offset int64) (io.ReadCloser, error) {
-	length := r.findLengthForOffset(offset)
-	if length == 0 {
-		return nil, fmt.Errorf("no entry found at offset %d", offset)
-	}
-
-	entry, err := r.ReadAt(offset, length)
-	if err != nil {
-		return nil, err
-	}
-
-	if entry.Response.Body.Content == "" {
-		return io.NopCloser(strings.NewReader("")), nil
-	}
-
-	return io.NopCloser(strings.NewReader(entry.Response.Body.Content)), nil
-}
-
-func (r *DefaultEntryReader) findLengthForOffset(offset int64) int64 {
-	for _, meta := range r.index.Entries {
-		if meta.FileOffset == offset {
-			return meta.Length
-		}
-	}
-	return 0
-}
-
-func (r *DefaultEntryReader) ReadMetadata(offset int64) (*EntryMetadata, error) {
-	for _, meta := range r.index.Entries {
-		if meta.FileOffset == offset {
-			return meta, nil
-		}
-	}
-	return nil, fmt.Errorf("no entry found at offset %d", offset)
-}
-
-func (r *DefaultEntryReader) Close() error {
-	if r.file != nil {
-		err := r.file.Close()
-		r.file = nil
-		return err
-	}
-	return nil
 }
