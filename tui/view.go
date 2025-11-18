@@ -28,6 +28,8 @@ func (m *HARViewModel) render() string {
     switch m.viewMode {
     case ViewModeTableWithSplit:
         return m.renderSplitView()
+    case ViewModeTableWithSearch:
+        return m.renderSearchView()
     default:
         return m.renderTableView()
     }
@@ -69,6 +71,30 @@ func (m *HARViewModel) renderSplitView() string {
     return builder.String()
 }
 
+func (m *HARViewModel) renderSearchView() string {
+    var builder strings.Builder
+
+    builder.WriteString(m.renderTitle())
+    builder.WriteString("\n")
+
+    // use cached colorized table to avoid re-rendering on every keystroke
+    if m.cachedColorizedTable != "" {
+        builder.WriteString(m.cachedColorizedTable)
+    } else {
+        // fallback to dynamic rendering if cache is empty
+        tableView := m.table.View()
+        colorizedTable := ColorizeHARTableOutput(tableView, m.table.Cursor(), m.rows)
+        builder.WriteString(colorizedTable)
+    }
+
+    builder.WriteString("\n")
+    builder.WriteString(m.renderSearchPanel())
+    builder.WriteString("\n")
+    builder.WriteString(m.renderStatusBar())
+
+    return builder.String()
+}
+
 func (m *HARViewModel) renderTitle() string {
     title := fmt.Sprintf("HARific: %s | ", m.fileName)
     titleStyle := lipgloss.NewStyle().
@@ -98,6 +124,13 @@ func (m *HARViewModel) renderStatusBar() string {
     if m.viewMode == ViewModeTable {
         parts = append(parts, "↑/↓: Navigate")
         parts = append(parts, "Enter: View Details")
+        parts = append(parts, "s: Search")
+    } else if m.viewMode == ViewModeTableWithSearch {
+        parts = append(parts, "↑/↓: Navigate")
+        parts = append(parts, "←/→: Jump to Input")
+        parts = append(parts, "Space: Toggle")
+        parts = append(parts, "Enter: Search")
+        parts = append(parts, "Esc: Close")
     } else {
         parts = append(parts, "↑/↓: Scroll")
         parts = append(parts, "Tab: Switch Panel")
@@ -152,6 +185,82 @@ func (m *HARViewModel) renderSplitPanel() string {
     rightPanel := rightBorderStyle.Render(m.responseViewport.View())
 
     return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+}
+
+// renderSearchPanel creates the search input panel with pink border styling.
+// The panel takes 30% of the vertical space at the bottom of the screen.
+func (m *HARViewModel) renderSearchPanel() string {
+    searchHeight := int(float64(m.height-tableVerticalPadding) * searchPanelHeightRatio)
+    if searchHeight < minSearchPanelHeight {
+        searchHeight = minSearchPanelHeight
+    }
+
+    searchStyle := lipgloss.NewStyle().
+        Width(m.width).
+        Height(searchHeight).
+        BorderStyle(lipgloss.NormalBorder()).
+        BorderForeground(RGBPink).
+        Padding(0, 1) // reduced vertical padding
+
+    labelStyle := lipgloss.NewStyle().
+        Bold(true).
+        Foreground(RGBPink)
+
+    // background highlight style for focused checkbox (same as table row)
+    highlightStyle := lipgloss.NewStyle().
+        Background(RGBSubtlePink).
+        Foreground(RGBPink).
+        Bold(true)
+
+    var content strings.Builder
+
+    // Search input
+    content.WriteString(labelStyle.Render("Search:"))
+    content.WriteString("\n")
+    content.WriteString(m.searchInput.View())
+    content.WriteString("\n")
+
+    // Checkboxes title
+    content.WriteString(labelStyle.Render("Search in:"))
+    content.WriteString("\n")
+
+    // Render checkboxes
+    checkboxes := []struct {
+        label   string
+        checked bool
+        index   int
+    }{
+        {"Option 1", m.searchOptions[0], searchCursorOpt1},
+        {"Option 2", m.searchOptions[1], searchCursorOpt2},
+        {"Option 3", m.searchOptions[2], searchCursorOpt3},
+    }
+
+    for i, cb := range checkboxes {
+        cursor := " "
+        if m.searchCursor == cb.index {
+            cursor = ">"
+        }
+
+        checkbox := "[ ]"
+        if cb.checked {
+            checkbox = "[x]"
+        }
+
+        line := fmt.Sprintf("%s %s %s", cursor, checkbox, cb.label)
+
+        // apply background highlight if this checkbox is focused
+        if m.searchCursor == cb.index {
+            line = highlightStyle.Render(line)
+        }
+
+        content.WriteString(line)
+        // don't add newline after last checkbox
+        if i < len(checkboxes)-1 {
+            content.WriteString("\n")
+        }
+    }
+
+    return searchStyle.Render(content.String())
 }
 
 func (m *HARViewModel) renderEmptyPanel() string {
