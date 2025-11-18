@@ -190,17 +190,11 @@ func (m *HARViewModel) renderSplitPanel() string {
 // renderSearchPanel creates the search input panel with pink border styling.
 // The panel takes 30% of the vertical space at the bottom of the screen.
 func (m *HARViewModel) renderSearchPanel() string {
-    searchHeight := int(float64(m.height-tableVerticalPadding) * searchPanelHeightRatio)
-    if searchHeight < minSearchPanelHeight {
-        searchHeight = minSearchPanelHeight
-    }
-
     searchStyle := lipgloss.NewStyle().
         Width(m.width).
-        Height(searchHeight).
         BorderStyle(lipgloss.NormalBorder()).
         BorderForeground(RGBPink).
-        Padding(0, 1) // reduced vertical padding
+        Padding(0, 1)
 
     labelStyle := lipgloss.NewStyle().
         Bold(true).
@@ -214,14 +208,14 @@ func (m *HARViewModel) renderSearchPanel() string {
 
     var content strings.Builder
 
-    // Search input
+    // Search label with spinner after when actively searching
     content.WriteString(labelStyle.Render("Search:"))
+    if m.isSearching {
+        content.WriteString(" ")
+        content.WriteString(m.searchSpinner.View())
+    }
     content.WriteString("\n")
     content.WriteString(m.searchInput.View())
-    content.WriteString("\n")
-
-    // Checkboxes title
-    content.WriteString(labelStyle.Render("Search in:"))
     content.WriteString("\n")
 
     // Render checkboxes
@@ -230,9 +224,10 @@ func (m *HARViewModel) renderSearchPanel() string {
         checked bool
         index   int
     }{
-        {"Option 1", m.searchOptions[0], searchCursorOpt1},
-        {"Option 2", m.searchOptions[1], searchCursorOpt2},
-        {"Option 3", m.searchOptions[2], searchCursorOpt3},
+        {"Response Bodies", m.searchOptions[0], searchCursorOpt1},
+        {"Regex Mode", m.searchOptions[1], searchCursorOpt2},
+        {"All Matches", m.searchOptions[2], searchCursorOpt3},
+        {"Live Search", m.searchOptions[3], searchCursorOpt4},
     }
 
     for i, cb := range checkboxes {

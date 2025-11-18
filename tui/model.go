@@ -9,6 +9,7 @@ import (
     "github.com/charmbracelet/bubbles/v2/textinput"
     "github.com/charmbracelet/bubbles/v2/viewport"
     tea "github.com/charmbracelet/bubbletea/v2"
+    "github.com/charmbracelet/lipgloss/v2"
     "github.com/pb33f/braid/motor"
     "github.com/pb33f/harhar"
 )
@@ -29,6 +30,23 @@ const (
     ViewportFocusRequest ViewportFocus = iota
     ViewportFocusResponse
 )
+
+// Search messages for async search execution
+type searchDebounceMsg struct {
+	id int64
+}
+
+type searchStartMsg struct{}
+
+type searchResultsMsg struct {
+	matches []motor.SearchResult
+}
+
+type searchCompleteMsg struct{}
+
+type searchErrorMsg struct {
+	err error
+}
 
 type HARViewModel struct {
     table      table.Model
@@ -53,8 +71,19 @@ type HARViewModel struct {
 
     searchInput   textinput.Model
     searchQuery   string
-    searchOptions [3]bool // checkbox states for search locations
-    searchCursor  int     // focus position: 0=input, 1-3=checkboxes
+    searchOptions [4]bool // checkbox states: 0=ResponseBody, 1=Regex, 2=AllMatches, 3=LiveSearch
+    searchCursor  int     // focus position: 0=input, 1-4=checkboxes
+
+    // search engine
+    searcher       *motor.HARSearcher
+    reader         motor.EntryReader
+    searchFilter   *SearchFilter
+    filterChain    *FilterChain
+    isSearching    bool
+    searchSpinner  spinner.Model
+    searchCtx      context.Context
+    searchCancel   context.CancelFunc
+    debounceID     int64 // increments on each keystroke to cancel stale debounces
 
     // cache for colorized table during search mode
     cachedColorizedTable string
@@ -81,6 +110,10 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
     searchInput := textinput.New()
     searchInput.CharLimit = 200
 
+    searchSpinner := spinner.New()
+    searchSpinner.Spinner = spinner.Dot
+    searchSpinner.Style = lipgloss.NewStyle().Foreground(RGBPink)
+
     m := &HARViewModel{
         fileName:        fileName,
         columns:         columns,
@@ -92,6 +125,9 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
         indexingMessage: "Building index...",
         searchInput:     searchInput,
         searchCursor:    searchCursorInput,
+        searchFilter:    NewSearchFilter(),
+        filterChain:     NewFilterChain(),
+        searchSpinner:   searchSpinner,
     }
 
     return m, nil
@@ -101,6 +137,83 @@ func (m *HARViewModel) toggleCheckbox() {
     if m.searchCursor > searchCursorInput && m.searchCursor < searchCursorCount {
         m.searchOptions[m.searchCursor-1] = !m.searchOptions[m.searchCursor-1]
     }
+}
+
+func (m *HARViewModel) executeSearch() tea.Cmd {
+    // safety check
+    if m.searcher == nil {
+        return nil
+    }
+
+    query := m.searchInput.Value()
+
+    // cancel previous search
+    if m.searchCancel != nil {
+        m.searchCancel()
+    }
+
+    // build search options from checkboxes
+    opts := motor.DefaultSearchOptions
+    opts.SearchResponseBody = m.searchOptions[0] // Response Bodies
+    opts.FirstMatchOnly = !m.searchOptions[2]    // All Matches (inverted)
+
+    if m.searchOptions[1] {
+        opts.Mode = motor.Regex // Regex Mode
+    } else {
+        opts.Mode = motor.PlainText
+    }
+
+    // create new search context
+    ctx, cancel := context.WithCancel(context.Background())
+    m.searchCtx = ctx
+    m.searchCancel = cancel
+
+    // capture query for the Cmd closure
+    searchQuery := query
+
+    // start search in background
+    return func() tea.Msg {
+        resultsChan, err := m.searcher.Search(ctx, searchQuery, opts)
+        if err != nil {
+            return searchErrorMsg{err: err}
+        }
+
+        // collect all results
+        var allMatches []motor.SearchResult
+        for batch := range resultsChan {
+            allMatches = append(allMatches, batch...)
+        }
+
+        // always return results message (even if empty)
+        return searchResultsMsg{matches: allMatches}
+    }
+}
+
+func (m *HARViewModel) startDebounceTimer() tea.Cmd {
+    m.debounceID++
+    currentID := m.debounceID
+
+    return func() tea.Msg {
+        time.Sleep(500 * time.Millisecond)
+        return searchDebounceMsg{id: currentID}
+    }
+}
+
+func (m *HARViewModel) applyFilters() {
+    m.filterChain.Clear()
+
+    if m.searchFilter.IsActive() {
+        m.filterChain.Add(m.searchFilter)
+    }
+
+    // future filters added here
+    // if m.methodFilter.IsActive() { m.filterChain.Add(m.methodFilter) }
+
+    filteredRows := m.filterChain.BuildFilteredRows(m.allEntries, m.rows)
+    m.table.SetRows(filteredRows)
+
+    // invalidate colorized table cache when filters change
+    m.cachedColorizedTable = ""
 }
 
 func (m *HARViewModel) Init() tea.Cmd {
@@ -129,6 +242,16 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         m.allEntries = msg.index.Entries
         m.indexingTime = msg.duration
 
+        // initialize reader and searcher
+        reader, err := motor.NewEntryReader(m.fileName, msg.index)
+        if err != nil {
+            m.err = err
+            m.loadState = LoadStateError
+            return m, nil
+        }
+        m.reader = reader
+        m.searcher = motor.NewSearcher(msg.streamer, reader)
+
         if m.width > 0 && m.height > 0 {
             m.initializeTable()
             m.ready = true
@@ -137,6 +260,49 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
     case indexErrorMsg:
         m.loadState = LoadStateError
+        m.err = msg.err
+        return m, nil
+
+    case searchDebounceMsg:
+        // only execute if this is the latest debounce (not stale)
+        if msg.id == m.debounceID {
+            return m, func() tea.Msg { return searchStartMsg{} }
+        }
+        return m, nil
+
+    case searchStartMsg:
+        query := m.searchInput.Value()
+
+        // empty query just clears filter without searching
+        if query == "" {
+            m.searchFilter.Clear()
+            m.applyFilters()
+            return m, nil
+        }
+
+        m.isSearching = true
+        m.searchFilter.Clear()
+        return m, tea.Batch(m.executeSearch(), m.searchSpinner.Tick)
+
+    case searchResultsMsg:
+        m.searchFilter.SetSearched(true)
+        for _, result := range msg.matches {
+            if result.Error == nil {
+                m.searchFilter.AddMatch(result.Index)
+            }
+        }
+        m.isSearching = false
+        m.applyFilters()
+        return m, nil
+
+    case searchCompleteMsg:
+        m.searchFilter.SetSearched(true)
+        m.isSearching = false
+        m.applyFilters()
+        return m, nil
+
+    case searchErrorMsg:
+        m.isSearching = false
         m.err = msg.err
         return m, nil
 
@@ -188,8 +354,9 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     }
                 } else if m.viewMode == ViewModeTableWithSearch {
                     if m.searchCursor == searchCursorInput {
-                        // In search mode on input, Enter triggers search
-                        // TODO: implement search execution
+                        // In search mode on input, Enter triggers search immediately
+                        m.debounceID++ // invalidate any pending debounce timers
+                        return m, func() tea.Msg { return searchStartMsg{} }
                     } else {
                         // On checkbox, Enter toggles like Space
                         m.toggleCheckbox()
@@ -263,10 +430,23 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     if m.loadState == LoadStateLoaded {
         switch m.viewMode {
         case ViewModeTableWithSearch:
+            // update search spinner if searching
+            if m.isSearching {
+                m.searchSpinner, cmd = m.searchSpinner.Update(msg)
+                cmds = append(cmds, cmd)
+            }
+
             // route to search input only if cursor is on input
             if m.searchCursor == searchCursorInput {
+                oldValue := m.searchInput.Value()
                 m.searchInput, cmd = m.searchInput.Update(msg)
                 cmds = append(cmds, cmd)
+
+                // check if live search is enabled (checkbox 4)
+                if m.searchOptions[3] && m.searchInput.Value() != oldValue {
+                    // start debounce timer
+                    cmds = append(cmds, m.startDebounceTimer())
+                }
             }
 
         case ViewModeTable:
@@ -408,15 +588,28 @@ func (m *HARViewModel) toggleSearchView() tea.Cmd {
         // reset search state and focus input
         m.searchCursor = searchCursorInput
         m.searchQuery = ""
-        m.searchOptions = [3]bool{} // reset all checkboxes to unchecked
+        m.searchOptions = [4]bool{} // reset all checkboxes to unchecked
         m.searchInput.SetValue("")
         return m.searchInput.Focus()
     } else {
         m.viewMode = ViewModeTable
         m.updateTableDimensions()
+
+        // cancel any pending search operations
+        m.debounceID++ // invalidate any pending debounce timers
+        if m.searchCancel != nil {
+            m.searchCancel()
+            m.searchCancel = nil
+        }
+
+        // clear search filter and restore full table
+        m.searchFilter.Clear()
+        m.applyFilters()
+
         // invalidate cache when leaving search mode
         m.cachedColorizedTable = ""
         m.cachedTableCursor = -1
+
         // blur input
         m.searchInput.Blur()
         return nil
@@ -459,6 +652,20 @@ func (m *HARViewModel) adjustColumnWidths() {
 
 // Cleanup releases resources when the model is destroyed
 func (m *HARViewModel) Cleanup() error {
+    // cancel any active search
+    m.debounceID++ // invalidate pending debounce timers
+    if m.searchCancel != nil {
+        m.searchCancel()
+    }
+
+    // close reader
+    if m.reader != nil {
+        if err := m.reader.Close(); err != nil {
+            return err
+        }
+    }
+
+    // close streamer
     if m.streamer != nil {
         return m.streamer.Close()
     }

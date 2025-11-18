@@ -1,7 +1,7 @@
 package tui
 
 const (
-	tableVerticalPadding = 4
+	tableVerticalPadding = 5 // title(2) + newlines(2) + footer(1)
 	splitPanelPadding    = 2
 	minURLColumnWidth    = 20
 	maxURLColumnWidth    = 100
@@ -21,5 +21,6 @@ const (
 	searchCursorOpt1  = 1
 	searchCursorOpt2  = 2
 	searchCursorOpt3  = 3
-	searchCursorCount = 4
+	searchCursorOpt4  = 4
+	searchCursorCount = 5
 )
