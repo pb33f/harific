@@ -13,6 +13,7 @@ import (
 type SearchOptions struct {
 	Mode               SearchMode // plaintext or regex
 	SearchResponseBody bool       // deep search flag (default: false)
+	FirstMatchOnly     bool       // stop at first match per entry (default: true)
 	WorkerCount        int        // default: runtime.numcpu()
 	ChunkSize          int        // entries per work batch (default: 0 = auto-partition)
 }
@@ -21,6 +22,7 @@ type SearchOptions struct {
 var DefaultSearchOptions = SearchOptions{
 	Mode:               PlainText,
 	SearchResponseBody: false,
+	FirstMatchOnly:     true, // backward compatible
 	WorkerCount:        runtime.NumCPU(),
 	ChunkSize:          0, // auto-partition
 }

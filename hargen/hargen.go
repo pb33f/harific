@@ -124,10 +124,7 @@ func Generate(opts GenerateOptions) (*GenerateResult, error) {
 
 // GenerateInMemory creates a har structure without writing to disk
 func GenerateInMemory(opts GenerateOptions) (*harhar.HAR, []InjectedTerm, error) {
-	// apply defaults
-	if opts.EntryCount == 0 {
-		opts.EntryCount = DefaultGenerateOptions.EntryCount
-	}
+	// apply defaults (honor zero entrycount for empty har testing)
 	if opts.DictionaryPath == "" {
 		opts.DictionaryPath = DefaultGenerateOptions.DictionaryPath
 	}
@@ -138,11 +135,12 @@ func GenerateInMemory(opts GenerateOptions) (*harhar.HAR, []InjectedTerm, error)
 		opts.MaxJSONNodes = DefaultGenerateOptions.MaxJSONNodes
 	}
 
-	// set random seed
+	// create local rng (avoid mutating global rand)
+	var rng *rand.Rand
 	if opts.Seed != 0 {
-		rand.Seed(opts.Seed)
+		rng = rand.New(rand.NewSource(opts.Seed))
 	} else {
-		rand.Seed(time.Now().UnixNano())
+		rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
 
 	// load dictionary
@@ -151,12 +149,12 @@ func GenerateInMemory(opts GenerateOptions) (*harhar.HAR, []InjectedTerm, error)
 		return nil, nil, fmt.Errorf("failed to load dictionary: %w", err)
 	}
 
-	// create generators
-	jsonGen := NewJSONGenerator(dict, opts.MaxJSONDepth, opts.MaxJSONNodes)
-	entryGen := NewEntryGenerator(dict, jsonGen)
+	// create generators with local rng
+	jsonGen := NewJSONGenerator(dict, opts.MaxJSONDepth, opts.MaxJSONNodes, rng)
+	entryGen := NewEntryGenerator(dict, jsonGen, rng)
 
 	// distribute injection terms across entries
-	injectionPlan := createInjectionPlan(opts.InjectTerms, opts.EntryCount, opts.InjectionLocations)
+	injectionPlan := createInjectionPlan(opts.InjectTerms, opts.EntryCount, opts.InjectionLocations, rng)
 
 	// generate entries
 	var entries []harhar.Entry
@@ -184,17 +182,17 @@ func GenerateInMemory(opts GenerateOptions) (*harhar.HAR, []InjectedTerm, error)
 }
 
 // createInjectionPlan distributes terms across entries
-func createInjectionPlan(terms []string, entryCount int, locations []InjectionLocation) map[int][]injectionRequest {
+func createInjectionPlan(terms []string, entryCount int, locations []InjectionLocation, rng *rand.Rand) map[int][]injectionRequest {
 	plan := make(map[int][]injectionRequest)
 
-	if len(terms) == 0 {
+	if len(terms) == 0 || entryCount == 0 {
 		return plan
 	}
 
 	// distribute terms randomly across entries
 	for _, term := range terms {
-		entryIndex := rand.Intn(entryCount)
-		location := randomLocation(locations)
+		entryIndex := rng.Intn(entryCount)
+		location := randomLocation(locations, rng)
 
 		plan[entryIndex] = append(plan[entryIndex], injectionRequest{
 			term:     term,
@@ -213,11 +211,11 @@ type injectionRequest struct {
 
 // randomLocation selects a random location from the provided list
 // if list is empty, selects from all locations
-func randomLocation(locations []InjectionLocation) InjectionLocation {
+func randomLocation(locations []InjectionLocation, rng *rand.Rand) InjectionLocation {
 	if len(locations) == 0 {
-		return InjectionLocation(rand.Intn(7)) // 0-6 covers all locations
+		return InjectionLocation(rng.Intn(7)) // 0-6 covers all locations
 	}
-	return locations[rand.Intn(len(locations))]
+	return locations[rng.Intn(len(locations))]
 }
 
 // GenerateToFile generates a har and writes it to a specific file path
