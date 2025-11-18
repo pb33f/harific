@@ -131,19 +131,29 @@ func searchEntry(ctx context.Context,
 		return result
 	}
 
-	// step 5: search request body
+	// step 5: search query params
+	if result := searchHeaders(index, entry.Request.QueryParams, pattern, "query.param."); result != nil {
+		return result
+	}
+
+	// step 6: search cookies
+	if result := searchCookies(index, entry.Request.Cookies, pattern); result != nil {
+		return result
+	}
+
+	// step 7: search request body
 	if entry.Request.Body.Content != "" {
 		if matches(entry.Request.Body.Content, pattern) {
 			return &SearchResult{Index: index, Field: "request.body"}
 		}
 	}
 
-	// step 6: search response headers
+	// step 8: search response headers
 	if result := searchHeaders(index, entry.Response.Headers, pattern, "response.headers."); result != nil {
 		return result
 	}
 
-	// step 7: search response body (optional - deep search)
+	// step 9: search response body (optional - deep search)
 	if opts.SearchResponseBody && entry.Response.Body.Content != "" {
 		if matches(entry.Response.Body.Content, pattern) {
 			return &SearchResult{Index: index, Field: "response.body"}
@@ -158,6 +168,16 @@ func searchHeaders(index int, headers []harhar.NameValuePair, pattern compiledPa
 	for _, header := range headers {
 		if matches(header.Name, pattern) || matches(header.Value, pattern) {
 			return &SearchResult{Index: index, Field: prefix + header.Name}
+		}
+	}
+	return nil
+}
+
+// searchCookies checks if any cookie name or value matches the pattern
+func searchCookies(index int, cookies []harhar.Cookie, pattern compiledPattern) *SearchResult {
+	for _, cookie := range cookies {
+		if matches(cookie.Name, pattern) || matches(cookie.Value, pattern) {
+			return &SearchResult{Index: index, Field: "cookie." + cookie.Name}
 		}
 	}
 	return nil

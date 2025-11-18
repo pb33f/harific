@@ -18,7 +18,7 @@ type readRequestBuilder struct {
 	req readRequest
 }
 
-// NewReadRequestBuilder creates a new builder for constructing read requests
+// creates a new builder for constructing read requests
 func NewReadRequestBuilder() ReadRequestBuilder {
 	return &readRequestBuilder{}
 }
@@ -53,7 +53,7 @@ func (r *readResponse) GetEntry() *harhar.Entry { return r.entry }
 func (r *readResponse) GetBytesRead() int64     { return r.bytesRead }
 func (r *readResponse) GetError() error         { return r.err }
 
-// newReadResponse creates a new read response
+// creates a new read response
 func newReadResponse() *readResponse {
 	return &readResponse{}
 }

@@ -56,7 +56,7 @@ type HARSearcher struct {
 	stats      searchAtomicStats
 }
 
-// NewSearcher creates a new har searcher
+// creates a new har searcher
 func NewSearcher(streamer HARStreamer, reader EntryReader) *HARSearcher {
 	return &HARSearcher{
 		streamer: streamer,

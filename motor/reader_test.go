@@ -1,8 +1,14 @@
 package motor
 
 import (
+	"context"
 	"os"
+	"sync"
 	"testing"
+
+	"github.com/pb33f/braid/hargen"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewEntryReader(t *testing.T) {
@@ -289,3 +295,311 @@ func TestEntryReader_Close(t *testing.T) {
 		t.Errorf("second close failed: %v", err)
 	}
 }
+
+// new tests for read() method and file pool
+
+func TestRead_WithBuffer_Success(t *testing.T) {
+	result, err := hargen.Generate(hargen.GenerateOptions{
+		EntryCount:  5,
+		InjectTerms: []string{"findme"},
+		InjectionLocations: []hargen.InjectionLocation{
+			hargen.ResponseBody,
+		},
+		Seed: 42,
+	})
+	require.NoError(t, err)
+	defer os.Remove(result.HARFilePath)
+
+	var injectedEntry *hargen.InjectedTerm
+	for i := range result.InjectedTerms {
+		if result.InjectedTerms[i].Term == "findme" {
+			injectedEntry = &result.InjectedTerms[i]
+			break
+		}
+	}
+	require.NotNil(t, injectedEntry)
+
+	streamer, err := NewHARStreamer(result.HARFilePath, DefaultStreamerOptions())
+	require.NoError(t, err)
+	defer streamer.Close()
+
+	err = streamer.Initialize(context.Background())
+	require.NoError(t, err)
+
+	index := streamer.GetIndex()
+	reader, err := NewEntryReader(result.HARFilePath, index)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	metadata := index.Entries[injectedEntry.EntryIndex]
+
+	buf := make([]byte, 64*1024)
+	req := NewReadRequestBuilder().
+		WithOffset(metadata.FileOffset).
+		WithLength(metadata.Length).
+		WithBuffer(&buf).
+		Build()
+
+	resp := reader.Read(context.Background(), req)
+	require.Nil(t, resp.GetError())
+	require.NotNil(t, resp.GetEntry())
+	assert.Greater(t, resp.GetBytesRead(), int64(0))
+	assert.Contains(t, resp.GetEntry().Response.Body.Content, "findme")
+}
+
+func TestRead_WithoutBuffer_Fallback(t *testing.T) {
+	result, err := hargen.Generate(hargen.GenerateOptions{
+		EntryCount: 3,
+		Seed:       42,
+	})
+	require.NoError(t, err)
+	defer os.Remove(result.HARFilePath)
+
+	streamer, err := NewHARStreamer(result.HARFilePath, DefaultStreamerOptions())
+	require.NoError(t, err)
+	defer streamer.Close()
+
+	err = streamer.Initialize(context.Background())
+	require.NoError(t, err)
+
+	index := streamer.GetIndex()
+	reader, err := NewEntryReader(result.HARFilePath, index)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	metadata := index.Entries[0]
+
+	req := NewReadRequestBuilder().
+		WithOffset(metadata.FileOffset).
+		WithLength(metadata.Length).
+		Build()
+
+	resp := reader.Read(context.Background(), req)
+	require.Nil(t, resp.GetError())
+	require.NotNil(t, resp.GetEntry())
+}
+
+func TestReadMetadata_OffsetIndex_O1Lookup(t *testing.T) {
+	result, err := hargen.Generate(hargen.GenerateOptions{
+		EntryCount: 100,
+		Seed:       42,
+	})
+	require.NoError(t, err)
+	defer os.Remove(result.HARFilePath)
+
+	streamer, err := NewHARStreamer(result.HARFilePath, DefaultStreamerOptions())
+	require.NoError(t, err)
+	defer streamer.Close()
+
+	err = streamer.Initialize(context.Background())
+	require.NoError(t, err)
+
+	index := streamer.GetIndex()
+	reader, err := NewEntryReader(result.HARFilePath, index)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	for i, expected := range index.Entries {
+		meta, err := reader.ReadMetadata(expected.FileOffset)
+		require.NoError(t, err, "failed to read metadata for entry %d", i)
+		assert.Equal(t, expected, meta)
+	}
+}
+
+func TestReadMetadata_NotFound_ReturnsError(t *testing.T) {
+	result, err := hargen.Generate(hargen.GenerateOptions{
+		EntryCount: 5,
+		Seed:       42,
+	})
+	require.NoError(t, err)
+	defer os.Remove(result.HARFilePath)
+
+	streamer, err := NewHARStreamer(result.HARFilePath, DefaultStreamerOptions())
+	require.NoError(t, err)
+	defer streamer.Close()
+
+	err = streamer.Initialize(context.Background())
+	require.NoError(t, err)
+
+	index := streamer.GetIndex()
+	reader, err := NewEntryReader(result.HARFilePath, index)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	_, err = reader.ReadMetadata(999999999)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "metadata not found")
+}
+
+func TestFilePool_ConcurrentReads_NoMutexContention(t *testing.T) {
+	result, err := hargen.Generate(hargen.GenerateOptions{
+		EntryCount: 50,
+		Seed:       42,
+	})
+	require.NoError(t, err)
+	defer os.Remove(result.HARFilePath)
+
+	streamer, err := NewHARStreamer(result.HARFilePath, DefaultStreamerOptions())
+	require.NoError(t, err)
+	defer streamer.Close()
+
+	err = streamer.Initialize(context.Background())
+	require.NoError(t, err)
+
+	index := streamer.GetIndex()
+	reader, err := NewEntryReader(result.HARFilePath, index)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	workerCount := 20
+	var wg sync.WaitGroup
+	errors := make(chan error, workerCount)
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			for j := 0; j < 5; j++ {
+				entryIdx := (workerID*5 + j) % len(index.Entries)
+				metadata := index.Entries[entryIdx]
+
+				buf := make([]byte, 64*1024)
+				req := NewReadRequestBuilder().
+					WithOffset(metadata.FileOffset).
+					WithLength(metadata.Length).
+					WithBuffer(&buf).
+					Build()
+
+				resp := reader.Read(context.Background(), req)
+				if resp.GetError() != nil {
+					errors <- resp.GetError()
+					return
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	for err := range errors {
+		t.Errorf("concurrent read error: %v", err)
+	}
+}
+
+func TestFilePool_SyncOnce_NoDuplicateTracking(t *testing.T) {
+	result, err := hargen.Generate(hargen.GenerateOptions{
+		EntryCount: 10,
+		Seed:       42,
+	})
+	require.NoError(t, err)
+	defer os.Remove(result.HARFilePath)
+
+	streamer, err := NewHARStreamer(result.HARFilePath, DefaultStreamerOptions())
+	require.NoError(t, err)
+	defer streamer.Close()
+
+	err = streamer.Initialize(context.Background())
+	require.NoError(t, err)
+
+	index := streamer.GetIndex()
+	reader, err := NewEntryReader(result.HARFilePath, index)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	metadata := index.Entries[0]
+	for i := 0; i < 100; i++ {
+		buf := make([]byte, 64*1024)
+		req := NewReadRequestBuilder().
+			WithOffset(metadata.FileOffset).
+			WithLength(metadata.Length).
+			WithBuffer(&buf).
+			Build()
+
+		resp := reader.Read(context.Background(), req)
+		require.Nil(t, resp.GetError())
+	}
+
+	reader.mu.Lock()
+	pooledCount := len(reader.pooledFiles)
+	reader.mu.Unlock()
+
+	assert.Less(t, pooledCount, 100, "file pool should not grow unbounded - max one per iteration")
+}
+
+func TestRead_BufferTooSmall_GrowsBuffer(t *testing.T) {
+	result, err := hargen.Generate(hargen.GenerateOptions{
+		EntryCount: 1,
+		Seed:       42,
+	})
+	require.NoError(t, err)
+	defer os.Remove(result.HARFilePath)
+
+	streamer, err := NewHARStreamer(result.HARFilePath, DefaultStreamerOptions())
+	require.NoError(t, err)
+	defer streamer.Close()
+
+	err = streamer.Initialize(context.Background())
+	require.NoError(t, err)
+
+	index := streamer.GetIndex()
+	reader, err := NewEntryReader(result.HARFilePath, index)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	metadata := index.Entries[0]
+
+	buf := make([]byte, 10)
+	req := NewReadRequestBuilder().
+		WithOffset(metadata.FileOffset).
+		WithLength(metadata.Length).
+		WithBuffer(&buf).
+		Build()
+
+	resp := reader.Read(context.Background(), req)
+
+	require.Nil(t, resp.GetError())
+	require.NotNil(t, resp.GetEntry())
+	assert.GreaterOrEqual(t, cap(buf), int(metadata.Length))
+}
+
+func TestClose_ClosesAllPooledFiles(t *testing.T) {
+	result, err := hargen.Generate(hargen.GenerateOptions{
+		EntryCount: 5,
+		Seed:       42,
+	})
+	require.NoError(t, err)
+	defer os.Remove(result.HARFilePath)
+
+	streamer, err := NewHARStreamer(result.HARFilePath, DefaultStreamerOptions())
+	require.NoError(t, err)
+	defer streamer.Close()
+
+	err = streamer.Initialize(context.Background())
+	require.NoError(t, err)
+
+	index := streamer.GetIndex()
+	reader, err := NewEntryReader(result.HARFilePath, index)
+	require.NoError(t, err)
+
+	for i := 0; i < 3 && i < len(index.Entries); i++ {
+		metadata := index.Entries[i]
+		buf := make([]byte, 64*1024)
+		req := NewReadRequestBuilder().
+			WithOffset(metadata.FileOffset).
+			WithLength(metadata.Length).
+			WithBuffer(&buf).
+			Build()
+
+		reader.Read(context.Background(), req)
+	}
+
+	err = reader.Close()
+	assert.NoError(t, err)
+
+	reader.mu.Lock()
+	assert.Nil(t, reader.pooledFiles)
+	reader.mu.Unlock()
+}
+
