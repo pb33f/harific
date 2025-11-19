@@ -42,6 +42,10 @@ func NewHARStreamer(filePath string, options StreamerOptions) (*DefaultHARStream
 }
 
 func (s *DefaultHARStreamer) Initialize(ctx context.Context) error {
+	return s.InitializeWithProgress(ctx, nil)
+}
+
+func (s *DefaultHARStreamer) InitializeWithProgress(ctx context.Context, progressChan chan<- IndexProgress) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -54,8 +58,15 @@ func (s *DefaultHARStreamer) Initialize(ctx context.Context) error {
 	}
 	defer file.Close()
 
+	// get file size for progress tracking
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat file: %w", err)
+	}
+	fileSize := fileInfo.Size()
+
 	builder := NewIndexBuilder(s.filePath)
-	index, err := builder.Build(file)
+	index, err := builder.BuildWithProgress(file, fileSize, progressChan)
 	if err != nil {
 		return fmt.Errorf("failed to build index: %w", err)
 	}

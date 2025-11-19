@@ -36,10 +36,19 @@ const (
 	keyEncoding          = "encoding"
 )
 
+// IndexProgress represents indexing progress
+type IndexProgress struct {
+	BytesRead    int64
+	TotalBytes   int64
+	EntriesSoFar int
+}
+
 type DefaultIndexBuilder struct {
-	index     *Index
-	hash      *xxhash.Digest
-	bytesRead int64
+	index        *Index
+	hash         *xxhash.Digest
+	bytesRead    int64
+	totalBytes   int64
+	progressChan chan<- IndexProgress
 }
 
 func NewIndexBuilder(filePath string) *DefaultIndexBuilder {
@@ -54,7 +63,19 @@ func NewIndexBuilder(filePath string) *DefaultIndexBuilder {
 }
 
 func (b *DefaultIndexBuilder) Build(reader io.Reader) (*Index, error) {
+	return b.BuildWithProgress(reader, 0, nil)
+}
+
+func (b *DefaultIndexBuilder) BuildWithProgress(reader io.Reader, totalBytes int64, progressChan chan<- IndexProgress) (*Index, error) {
 	startTime := time.Now()
+
+	b.totalBytes = totalBytes
+	b.progressChan = progressChan
+
+	// motor owns the channel lifecycle - close when done
+	if progressChan != nil {
+		defer close(progressChan)
+	}
 
 	hashReader := &hashingReader{
 		reader: reader,
@@ -172,7 +193,17 @@ func (b *DefaultIndexBuilder) parseEntries(decoder HARDecoder) error {
 		return fmt.Errorf("expected array delimiter, got %v", token)
 	}
 
+	const (
+		updateEveryNEntries = 100
+		updateEveryNBytes   = 5 * 1024 * 1024 // 5MB
+	)
+
+	// pre-compute to avoid checking in hot path
+	trackProgress := b.progressChan != nil && b.totalBytes > 0
+
 	entryIndex := 0
+	lastProgressBytes := int64(0)
+
 	for decoder.More() {
 		startOffset := decoder.InputOffset()
 
@@ -196,9 +227,50 @@ func (b *DefaultIndexBuilder) parseEntries(decoder HARDecoder) error {
 		}
 
 		entryIndex++
+
+		// send progress update after entry processed
+		if trackProgress {
+			b.sendProgressUpdate(endOffset, entryIndex, updateEveryNEntries, updateEveryNBytes, &lastProgressBytes)
+		}
+	}
+
+	// send final progress update
+	if trackProgress {
+		b.sendProgressUpdate(decoder.InputOffset(), entryIndex, 0, 0, &lastProgressBytes)
 	}
 
 	return nil
+}
+
+func (b *DefaultIndexBuilder) sendProgressUpdate(offset int64, entries int, everyNEntries int, everyNBytes int64, lastBytes *int64) {
+	// always send if everyNEntries is 0 (final update)
+	if everyNEntries == 0 {
+		select {
+		case b.progressChan <- IndexProgress{
+			BytesRead:    offset,
+			TotalBytes:   b.totalBytes,
+			EntriesSoFar: entries,
+		}:
+		default:
+		}
+		return
+	}
+
+	// hybrid check: every N entries OR every N bytes
+	shouldUpdate := (entries%everyNEntries == 0) ||
+		(offset-*lastBytes >= everyNBytes)
+
+	if shouldUpdate {
+		select {
+		case b.progressChan <- IndexProgress{
+			BytesRead:    offset,
+			TotalBytes:   b.totalBytes,
+			EntriesSoFar: entries,
+		}:
+			*lastBytes = offset
+		default:
+		}
+	}
 }
 
 // parseEntryMetadata selectively parses only metadata fields, skipping response bodies entirely

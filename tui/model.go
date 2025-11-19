@@ -4,6 +4,7 @@ import (
     "context"
     "time"
 
+    "github.com/charmbracelet/bubbles/v2/progress"
     "github.com/charmbracelet/bubbles/v2/spinner"
     "github.com/charmbracelet/bubbles/v2/table"
     "github.com/charmbracelet/bubbles/v2/textinput"
@@ -112,10 +113,14 @@ type HARViewModel struct {
 
     fileName string
 
-    loadState       LoadState
-    loadingSpinner  spinner.Model
-    indexingMessage string
-    indexingTime    time.Duration
+    loadState        LoadState
+    loadingSpinner   spinner.Model
+    indexingMessage  string
+    indexingTime     time.Duration
+    progressBar      progress.Model
+    progressChan     chan motor.IndexProgress
+    indexingPercent  float64
+    indexingEntries  int
 
     err error
 }
@@ -135,6 +140,11 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
     searchSpinner.Spinner = spinner.Dot
     searchSpinner.Style = lipgloss.NewStyle().Foreground(RGBPink)
 
+    progressBar := progress.New(
+        progress.WithDefaultScaledGradient(),
+        progress.WithWidth(50),
+    )
+
     m := &HARViewModel{
         fileName:        fileName,
         columns:         columns,
@@ -152,6 +162,8 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
         activeModal:      ModalNone,
         fileTypeFilter:   NewFileTypeFilter(),
         filterCheckboxes: [6]bool{true, true, true, true, true, true}, // all enabled by default
+        progressBar:      progressBar,
+        progressChan:     make(chan motor.IndexProgress, 10),
     }
 
     return m, nil
@@ -290,6 +302,14 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         m.loadState = LoadStateError
         m.err = msg.err
         return m, nil
+
+    case indexProgressMsg:
+        if msg.totalBytes > 0 {
+            m.indexingPercent = float64(msg.bytesRead) / float64(msg.totalBytes)
+        }
+        m.indexingEntries = msg.entriesSoFar
+        // continue listening for more progress (recursive command pattern)
+        return m, m.listenForProgress()
 
     case searchDebounceMsg:
         // only execute if this is the latest debounce (not stale)

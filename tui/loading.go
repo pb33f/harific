@@ -30,8 +30,28 @@ type indexErrorMsg struct {
 	err error
 }
 
-func (m *HARViewModel) startIndexing() tea.Cmd {
+type indexProgressMsg struct {
+	bytesRead    int64
+	totalBytes   int64
+	entriesSoFar int
+}
+
+func (m *HARViewModel) listenForProgress() tea.Cmd {
 	return func() tea.Msg {
+		progress, ok := <-m.progressChan
+		if !ok {
+			return nil // channel closed
+		}
+		return indexProgressMsg{
+			bytesRead:    progress.BytesRead,
+			totalBytes:   progress.TotalBytes,
+			entriesSoFar: progress.EntriesSoFar,
+		}
+	}
+}
+
+func (m *HARViewModel) startIndexing() tea.Cmd {
+	indexCmd := func() tea.Msg {
 		start := time.Now()
 
 		streamer, err := motor.NewHARStreamer(m.fileName, motor.DefaultStreamerOptions())
@@ -39,7 +59,8 @@ func (m *HARViewModel) startIndexing() tea.Cmd {
 			return indexErrorMsg{err: err}
 		}
 
-		if err := streamer.Initialize(context.Background()); err != nil {
+		// motor closes the channel when done
+		if err := streamer.InitializeWithProgress(context.Background(), m.progressChan); err != nil {
 			return indexErrorMsg{err: err}
 		}
 
@@ -51,6 +72,8 @@ func (m *HARViewModel) startIndexing() tea.Cmd {
 			duration: time.Since(start),
 		}
 	}
+
+	return tea.Batch(indexCmd, m.listenForProgress())
 }
 
 func (m *HARViewModel) renderLoadingView() string {
@@ -84,9 +107,15 @@ func (m *HARViewModel) renderLoadingView() string {
 	content.WriteString(titleStyle.Render("Loading HAR File"))
 	content.WriteString("\n")
 	content.WriteString(fileInfoStyle.Render(m.fileName))
+	content.WriteString("\n\n")
 
-	if m.indexingMessage != "" {
-		content.WriteString("\n\n")
+	// show progress bar if we have progress data
+	if m.indexingPercent > 0 {
+		content.WriteString(m.progressBar.ViewAs(m.indexingPercent))
+		content.WriteString("  ")
+		content.WriteString(messageStyle.Render(fmt.Sprintf("Processed %d entries (%.1f%%)",
+			m.indexingEntries, m.indexingPercent*100)))
+	} else if m.indexingMessage != "" {
 		content.WriteString(messageStyle.Render(m.indexingMessage))
 	}
 
