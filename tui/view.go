@@ -98,8 +98,9 @@ func (m *HARViewModel) renderSearchView() string {
 func (m *HARViewModel) renderTitle() string {
     title := fmt.Sprintf("HARific: %s | ", m.fileName)
     titleStyle := lipgloss.NewStyle().
+        BorderStyle(lipgloss.NormalBorder()).
         Padding(0, 1).
-        BorderStyle(lipgloss.NormalBorder()).Width(m.width).BorderForeground(RGBBlue)
+        Width(m.width).BorderForeground(RGBBlue).BorderTop(false).BorderLeft(false).BorderRight(false).BorderBottom(true)
 
     titleTextStyle := lipgloss.NewStyle().
         Bold(true)
@@ -278,38 +279,14 @@ func (m *HARViewModel) formatRequest() string {
         return "No request data"
     }
 
-    var builder strings.Builder
-    req := &m.selectedEntry.Request
+    sections := buildRequestSections(&m.selectedEntry.Request)
 
-    builder.WriteString(fmt.Sprintf("%s %s\n", req.Method, req.URL))
-    builder.WriteString(strings.Repeat("-", 40))
-    builder.WriteString("\n\n")
-
-    if len(req.Headers) > 0 {
-        builder.WriteString("Headers:\n")
-        for _, header := range req.Headers {
-            builder.WriteString(fmt.Sprintf("  %s: %s\n", header.Name, header.Value))
-        }
-        builder.WriteString("\n")
+    opts := RenderOptions{
+        Width:    m.requestViewport.Width(),
+        Truncate: true,
     }
 
-    if len(req.QueryParams) > 0 {
-        builder.WriteString("Query Parameters:\n")
-        for _, param := range req.QueryParams {
-            builder.WriteString(fmt.Sprintf("  %s: %s\n", param.Name, param.Value))
-        }
-        builder.WriteString("\n")
-    }
-
-    if req.Body.Content != "" {
-        builder.WriteString("Body:\n")
-        builder.WriteString(truncateBody(req.Body.Content, maxBodyDisplayLength))
-        builder.WriteString("\n")
-    } else {
-        builder.WriteString("Body:\n  (empty)\n")
-    }
-
-    return builder.String()
+    return renderSections(sections, opts)
 }
 
 func (m *HARViewModel) formatResponse() string {
@@ -317,53 +294,14 @@ func (m *HARViewModel) formatResponse() string {
         return "No response data"
     }
 
-    var builder strings.Builder
-    resp := &m.selectedEntry.Response
+    sections := buildResponseSections(&m.selectedEntry.Response, &m.selectedEntry.Timings)
 
-    builder.WriteString(fmt.Sprintf("%d %s\n", resp.StatusCode, resp.StatusText))
-    builder.WriteString(strings.Repeat("-", 40))
-    builder.WriteString("\n\n")
-
-    if len(resp.Headers) > 0 {
-        builder.WriteString("Headers:\n")
-        for _, header := range resp.Headers {
-            builder.WriteString(fmt.Sprintf("  %s: %s\n", header.Name, header.Value))
-        }
-        builder.WriteString("\n")
+    opts := RenderOptions{
+        Width:    m.responseViewport.Width(),
+        Truncate: true,
     }
 
-    if resp.Body.Content != "" {
-        builder.WriteString("Body:\n")
-        builder.WriteString(truncateBody(resp.Body.Content, maxBodyDisplayLength))
-        builder.WriteString("\n")
-    } else {
-        builder.WriteString("Body:\n  (empty)\n")
-    }
-
-    if m.selectedEntry.Timings.DNS >= 0 || m.selectedEntry.Timings.Connect >= 0 {
-        builder.WriteString("\nTimings:\n")
-        t := &m.selectedEntry.Timings
-        if t.DNS >= 0 {
-            builder.WriteString(fmt.Sprintf("  DNS: %.2fms\n", t.DNS))
-        }
-        if t.Connect >= 0 {
-            builder.WriteString(fmt.Sprintf("  Connect: %.2fms\n", t.Connect))
-        }
-        if t.Send >= 0 {
-            builder.WriteString(fmt.Sprintf("  Send: %.2fms\n", t.Send))
-        }
-        if t.Wait >= 0 {
-            builder.WriteString(fmt.Sprintf("  Wait: %.2fms\n", t.Wait))
-        }
-        if t.Receive >= 0 {
-            builder.WriteString(fmt.Sprintf("  Receive: %.2fms\n", t.Receive))
-        }
-        if t.SSL >= 0 {
-            builder.WriteString(fmt.Sprintf("  SSL: %.2fms\n", t.SSL))
-        }
-    }
-
-    return builder.String()
+    return renderSections(sections, opts)
 }
 
 func (m *HARViewModel) renderError() string {
