@@ -160,7 +160,31 @@ func (m *HARViewModel) renderStatusBar() string {
     }
 
     statusStyle := lipgloss.NewStyle().Faint(true)
-    return statusStyle.Render(strings.Join(parts, " | "))
+    statusBar := strings.Join(parts, " | ")
+
+    // Add active search indicator on the right when there's an active search
+    if m.searchQuery != "" && (m.viewMode == ViewModeTableFiltered || m.viewMode == ViewModeTable) {
+        searchIndicatorStyle := lipgloss.NewStyle().
+            Foreground(RGBPink).
+            Bold(true)
+        searchText := fmt.Sprintf("[search: %s]", m.searchQuery)
+        searchIndicator := searchIndicatorStyle.Render(searchText)
+
+        // Calculate padding to right-align the search indicator
+        statusWidth := lipgloss.Width(statusBar)
+        searchWidth := lipgloss.Width(searchIndicator)
+        availableWidth := m.width - statusWidth - searchWidth - 2
+
+        if availableWidth > 0 {
+            padding := strings.Repeat(" ", availableWidth)
+            return statusStyle.Render(statusBar) + padding + searchIndicator
+        } else {
+            // If not enough space, just append with a space
+            return statusStyle.Render(statusBar) + " " + searchIndicator
+        }
+    }
+
+    return statusStyle.Render(statusBar)
 }
 
 func (m *HARViewModel) renderSplitPanel() string {

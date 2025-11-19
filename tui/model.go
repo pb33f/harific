@@ -231,7 +231,9 @@ func (m *HARViewModel) startDebounceTimer() tea.Cmd {
     currentID := m.debounceID
 
     return func() tea.Msg {
-        time.Sleep(20 * time.Millisecond)
+        // 300ms debounce for live search - much more reasonable for large datasets
+        // This gives users time to finish typing and reduces system load
+        time.Sleep(300 * time.Millisecond)
         return searchDebounceMsg{id: currentID}
     }
 }
@@ -322,18 +324,29 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     case searchStartMsg:
         query := m.searchInput.Value()
 
-        // empty query just clears filter without searching
+        // Only clear filter if we're actively in search mode with empty query
+        // Don't clear if we're in filtered view (user pressed Esc to view results)
         if query == "" {
-            m.searchFilter.Clear()
-            m.applyFilters()
+            if m.viewMode == ViewModeTableWithSearch {
+                // User cleared the search input while in search mode
+                m.searchQuery = ""
+                m.searchFilter.Clear()
+                m.applyFilters()
+            }
+            // If not in search mode, don't do anything (preserves filtered results)
             return m, nil
         }
 
+        m.searchQuery = query  // Store the active search query
         m.isSearching = true
-        m.searchFilter.Clear()
+        // DON'T clear the filter yet - wait for results
+        // This prevents the filter from becoming inactive between searches
         return m, tea.Batch(m.executeSearch(), m.searchSpinner.Tick)
 
     case searchResultsMsg:
+        // Clear previous results and add new ones
+        // This ensures we always show results from the latest search
+        m.searchFilter.ClearMatches()  // Just clear matches, keep filter active
         m.searchFilter.SetSearched(true)
         for _, result := range msg.matches {
             if result.Error == nil {
@@ -453,6 +466,7 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         m.searchCancel()
                         m.searchCancel = nil
                     }
+                    m.searchQuery = ""  // Clear the search query
                     m.searchFilter.Clear()
                     m.applyFilters()
                     m.updateTableDimensions()  // Update table height when returning to normal view
@@ -665,11 +679,14 @@ func (m *HARViewModel) updateTableDimensions() {
         // Save current cursor position
         currentCursor := m.table.Cursor()
 
+        // Get the current rows from the table (which may be filtered)
+        currentRows := m.table.Rows()
+
         // Recreate the table with the correct height
         tableHeight := m.calculateTableHeight()
         m.table = table.New(
             table.WithColumns(m.columns),
-            table.WithRows(m.rows),
+            table.WithRows(currentRows),  // Use current rows, not m.rows!
             table.WithFocused(true),
             table.WithHeight(tableHeight),
             table.WithWidth(m.width),

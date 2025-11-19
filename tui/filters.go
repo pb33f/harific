@@ -54,6 +54,11 @@ func (f *SearchFilter) Clear() {
 	f.hasSearched = false
 }
 
+// ClearMatches removes all matches but keeps the filter active if it was searched
+func (f *SearchFilter) ClearMatches() {
+	f.matches = make(map[int]struct{})
+}
+
 // MatchCount returns the number of matches
 func (f *SearchFilter) MatchCount() int {
 	return len(f.matches)
