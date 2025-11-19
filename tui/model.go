@@ -38,6 +38,8 @@ type ModalType int
 const (
     ModalNone ModalType = iota
     ModalFileTypeFilter
+    ModalRequestFull
+    ModalResponseFull
 )
 
 // Search messages for async search execution
@@ -97,8 +99,12 @@ type HARViewModel struct {
     // file type filter modal
     activeModal      ModalType
     fileTypeFilter   *FileTypeFilter
-    filterCheckboxes [6]bool // Graphics, JS, CSS, Fonts, HTML, AllFiles
+    filterCheckboxes [6]bool // Graphics, JS, CSS, Fonts, Markup, AllFiles
     filterCursor     int     // which checkbox is focused in modal
+
+    // detail viewport modal (full request/response view)
+    detailViewport viewport.Model
+    detailViewType string // "request" or "response"
 
     // cache for colorized table during search mode
     cachedColorizedTable string
@@ -346,7 +352,10 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     case tea.KeyPressMsg:
         key := msg.String()
 
-        // modal keys have priority
+        // modal keys have priority (check detail modal first, then filter modal)
+        if handled, cmd := m.handleDetailModalKeys(key); handled {
+            return m, cmd
+        }
         if handled, cmd := m.handleFilterModalKeys(key); handled {
             return m, cmd
         }
@@ -391,6 +400,17 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     } else {
                         // On checkbox, Enter toggles like Space
                         m.toggleCheckbox()
+                    }
+                } else if m.viewMode == ViewModeTableWithSplit {
+                    // In split view, Enter opens detail modal for focused panel
+                    if m.focusedViewport == ViewportFocusRequest {
+                        m.activeModal = ModalRequestFull
+                        m.detailViewType = "request"
+                        m.detailViewport.GotoTop() // reset scroll when opening
+                    } else {
+                        m.activeModal = ModalResponseFull
+                        m.detailViewType = "response"
+                        m.detailViewport.GotoTop() // reset scroll when opening
                     }
                 }
             }
@@ -585,7 +605,12 @@ func (m *HARViewModel) View() string {
     if m.activeModal != ModalNone {
         modal := m.renderActiveModal()
         if modal != "" {
-            x, y := m.calculateModalPosition()
+            var x, y int
+            if m.activeModal == ModalRequestFull || m.activeModal == ModalResponseFull {
+                x, y = m.calculateDetailModalPosition()
+            } else {
+                x, y = m.calculateModalPosition()
+            }
             layers = append(layers, lipgloss.NewLayer(modal).X(x).Y(y).Z(1))
         }
     }
@@ -685,9 +710,29 @@ func (m *HARViewModel) calculateModalPosition() (int, int) {
     modalWidth := int(float64(m.width) * 0.4)
     modalHeight := int(float64(m.height) * 0.9)
 
-    // position on right with padding
+    // position on right with padding (for filter modal)
     rightPadding := 2
     x := m.width - modalWidth - rightPadding
+
+    // center vertically
+    y := (m.height - modalHeight) / 2
+
+    if x < 0 {
+        x = 0
+    }
+    if y < 0 {
+        y = 0
+    }
+
+    return x, y
+}
+
+func (m *HARViewModel) calculateDetailModalPosition() (int, int) {
+    modalWidth := int(float64(m.width) * 0.9)
+    modalHeight := int(float64(m.height) * 0.9)
+
+    // center horizontally
+    x := (m.width - modalWidth) / 2
 
     // center vertically
     y := (m.height - modalHeight) / 2
@@ -706,6 +751,8 @@ func (m *HARViewModel) renderActiveModal() string {
     switch m.activeModal {
     case ModalFileTypeFilter:
         return m.renderFilterModal()
+    case ModalRequestFull, ModalResponseFull:
+        return m.renderDetailModal()
     default:
         return ""
     }

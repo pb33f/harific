@@ -16,6 +16,13 @@ var (
     RGBSubtlePink = lipgloss.Color("#2a1a2a")
 )
 
+// Syntax highlighting styles for JSON/YAML
+var (
+    SyntaxKeyStyle    = lipgloss.NewStyle().Foreground(RGBBlue).Bold(true)
+    SyntaxNumberStyle = lipgloss.NewStyle().Foreground(RGBYellow).Bold(true)
+    SyntaxDashStyle   = lipgloss.NewStyle().Foreground(RGBPink)
+)
+
 // General styles
 var (
     TitleStyle = lipgloss.NewStyle().
