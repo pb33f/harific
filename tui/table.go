@@ -24,9 +24,10 @@ func formatEntryRow(entry *motor.EntryMetadata, terminalWidth int) table.Row {
 	method := formatMethod(entry.Method)
 	urlPath := formatURL(entry.URL, terminalWidth)
 	status := formatStatus(entry.StatusCode, entry.StatusText)
+	size := formatSize(entry.ResponseSize)
 	duration := formatDuration(entry.Duration)
 
-	return table.Row{method, urlPath, status, duration}
+	return table.Row{method, urlPath, status, size, duration}
 }
 
 func formatMethod(method string) string {
@@ -63,8 +64,8 @@ func formatURL(fullURL string, terminalWidth int) string {
 		path = path + "?" + u.RawQuery
 	}
 
-	// 10 = borderPadding + column spacing
-	availableWidth := terminalWidth - methodColumnWidth - statusColumnWidth - durationColumnWidth - 10
+	// 12 = borderPadding + column spacing (updated for 5 columns)
+	availableWidth := terminalWidth - methodColumnWidth - statusColumnWidth - sizeColumnWidth - durationColumnWidth - 12
 	if availableWidth < minURLColumnWidth {
 		availableWidth = minURLColumnWidth
 	}
@@ -93,6 +94,24 @@ func formatStatus(code int, text string) string {
 	}
 
 	return fmt.Sprintf("%d", code)
+}
+
+func formatSize(bytes int64) string {
+	if bytes == 0 {
+		return "---"
+	}
+
+	kb := float64(bytes) / 1024.0
+
+	switch {
+	case kb < 1:
+		return fmt.Sprintf("%dB", bytes)
+	case kb < 1024:
+		return fmt.Sprintf("%.1fKB", kb)
+	default:
+		mb := kb / 1024.0
+		return fmt.Sprintf("%.1fMB", mb)
+	}
 }
 
 func formatDuration(durationMs float64) string {

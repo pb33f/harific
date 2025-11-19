@@ -45,19 +45,19 @@ const (
 
 // Search messages for async search execution
 type searchDebounceMsg struct {
-	id int64
+    id int64
 }
 
 type searchStartMsg struct{}
 
 type searchResultsMsg struct {
-	matches []motor.SearchResult
+    matches []motor.SearchResult
 }
 
 type searchCompleteMsg struct{}
 
 type searchErrorMsg struct {
-	err error
+    err error
 }
 
 type HARViewModel struct {
@@ -87,15 +87,15 @@ type HARViewModel struct {
     searchCursor  int     // focus position: 0=input, 1-4=checkboxes
 
     // search engine
-    searcher       *motor.HARSearcher
-    reader         motor.EntryReader
-    searchFilter   *SearchFilter
-    filterChain    *FilterChain
-    isSearching    bool
-    searchSpinner  spinner.Model
-    searchCtx      context.Context
-    searchCancel   context.CancelFunc
-    debounceID     int64 // increments on each keystroke to cancel stale debounces
+    searcher      *motor.HARSearcher
+    reader        motor.EntryReader
+    searchFilter  *SearchFilter
+    filterChain   *FilterChain
+    isSearching   bool
+    searchSpinner spinner.Model
+    searchCtx     context.Context
+    searchCancel  context.CancelFunc
+    debounceID    int64 // increments on each keystroke to cancel stale debounces
 
     // file type filter modal
     activeModal      ModalType
@@ -113,14 +113,14 @@ type HARViewModel struct {
 
     fileName string
 
-    loadState        LoadState
-    loadingSpinner   spinner.Model
-    indexingMessage  string
-    indexingTime     time.Duration
-    progressBar      progress.Model
-    progressChan     chan motor.IndexProgress
-    indexingPercent  float64
-    indexingEntries  int
+    loadState       LoadState
+    loadingSpinner  spinner.Model
+    indexingMessage string
+    indexingTime    time.Duration
+    progressBar     progress.Model
+    progressChan    chan motor.IndexProgress
+    indexingPercent float64
+    indexingEntries int
 
     err error
 }
@@ -130,6 +130,7 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
         {Title: "Method", Width: methodColumnWidth},
         {Title: "URL", Width: maxURLDisplayLength},
         {Title: "Status", Width: statusColumnWidth},
+        {Title: "Size", Width: sizeColumnWidth},
         {Title: "Duration", Width: durationColumnWidth},
     }
 
@@ -146,15 +147,15 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
     )
 
     m := &HARViewModel{
-        fileName:        fileName,
-        columns:         columns,
-        viewMode:        ViewModeTable,
-        selectedIndex:   0,
-        focusedViewport: ViewportFocusRequest,
-        loadState:       LoadStateLoading,
-        loadingSpinner:  createLoadingSpinner(),
-        indexingMessage: "Building index...",
-        searchInput:     searchInput,
+        fileName:         fileName,
+        columns:          columns,
+        viewMode:         ViewModeTable,
+        selectedIndex:    0,
+        focusedViewport:  ViewportFocusRequest,
+        loadState:        LoadStateLoading,
+        loadingSpinner:   createLoadingSpinner(),
+        indexingMessage:  "Building index...",
+        searchInput:      searchInput,
         searchCursor:     searchCursorInput,
         searchFilter:     NewSearchFilter(),
         filterChain:      NewFilterChain(),
@@ -454,6 +455,7 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     }
                     m.searchFilter.Clear()
                     m.applyFilters()
+                    m.updateTableDimensions()  // Update table height when returning to normal view
                     return m, nil
                 } else if m.viewMode == ViewModeTableWithSplit {
                     // Esc in split view: return to filtered or table based on active filters
@@ -621,7 +623,7 @@ func (m *HARViewModel) View() string {
         lipgloss.NewLayer(baseView),
     }
 
-    // add modal layer if active
+    // add modal zlayer if active
     if m.activeModal != ModalNone {
         modal := m.renderActiveModal()
         if modal != "" {
@@ -657,30 +659,80 @@ func (m *HARViewModel) initializeTable() {
 }
 
 func (m *HARViewModel) updateTableDimensions() {
-    tableHeight := m.calculateTableHeight()
-    m.table.SetHeight(tableHeight)
-    m.table.SetWidth(m.width)
+    // When returning to normal table view, recreate the table to ensure proper height
+    // The Bubbles table component doesn't always properly recalculate when using SetHeight()
+    if m.viewMode == ViewModeTable || m.viewMode == ViewModeTableFiltered {
+        // Save current cursor position
+        currentCursor := m.table.Cursor()
 
-    m.adjustColumnWidths()
+        // Recreate the table with the correct height
+        tableHeight := m.calculateTableHeight()
+        m.table = table.New(
+            table.WithColumns(m.columns),
+            table.WithRows(m.rows),
+            table.WithFocused(true),
+            table.WithHeight(tableHeight),
+            table.WithWidth(m.width),
+        )
+
+        m.table = ApplyTableStyles(m.table)
+        m.adjustColumnWidths()
+
+        // Restore cursor position
+        m.table.SetCursor(currentCursor)
+    } else {
+        // For other modes, just update dimensions normally
+        tableHeight := m.calculateTableHeight()
+        m.table.SetHeight(tableHeight)
+        m.table.SetWidth(m.width)
+        m.adjustColumnWidths()
+        m.table.UpdateViewport()
+    }
 }
 
 func (m *HARViewModel) calculateTableHeight() int {
-    tableHeight := m.height - tableVerticalPadding
-
     switch m.viewMode {
     case ViewModeTableWithSplit:
-        tableHeight /= 2
+        // Split view layout:
+        // - Title with border: 2 rows
+        // - Table: (height - 5) / 2
+        // - Split panel: (height - 5) / 2
+        // - Status bar: 1 row
+        // - Newlines between sections: 2
+        // Total overhead: 5 rows
+        return (m.height - 2) / 2
     case ViewModeTableWithSearch:
-        tableHeight = int(float64(m.height-tableVerticalPadding) * searchTableHeightRatio)
+        // Search view layout:
+        // - Title with border: 2 rows
+        // - Table: 70% of remaining
+        // - Search panel: 30% of remaining
+        // - Status bar: 1 row
+        // - Newlines: 2
+        // Total overhead: 5 rows
+        availableHeight := m.height - 2
+        return int(float64(availableHeight) * searchTableHeightRatio)
+    default:
+        // Normal table view:
+        // - Title with border: 2 rows
+        // - Table: rest
+        // - Status bar: 1 row
+        // - Newlines: 2
+        // Using tableVerticalPadding constant which is 5
+        return m.height - tableVerticalPadding
     }
-
-    return tableHeight
 }
 
 func (m *HARViewModel) calculatePanelDimensions() (panelWidth, panelHeight int) {
     panelWidth = m.width / 2
-    panelHeight = m.height/2 - ((tableVerticalPadding / 2) - 1)
+    // Panel height matches table height in split view
+    panelHeight = (m.height - 5) / 2
     return panelWidth, panelHeight
+}
+
+func (m *HARViewModel) calculateSearchPanelHeight() int {
+    // Search panel gets 30% of available content space
+    availableHeight := m.height - 5
+    return int(float64(availableHeight) * searchPanelHeightRatio)
 }
 
 func (m *HARViewModel) updateViewportDimensions() {
@@ -817,7 +869,7 @@ func (m *HARViewModel) loadSelectedEntry() error {
 }
 
 func (m *HARViewModel) adjustColumnWidths() {
-    urlWidth := m.width - methodColumnWidth - statusColumnWidth - durationColumnWidth - borderPadding
+    urlWidth := m.width - methodColumnWidth - statusColumnWidth - sizeColumnWidth - durationColumnWidth - borderPadding
     if urlWidth < minURLColumnWidth {
         urlWidth = minURLColumnWidth
     }
@@ -825,7 +877,8 @@ func (m *HARViewModel) adjustColumnWidths() {
     m.columns[0].Width = methodColumnWidth
     m.columns[1].Width = urlWidth
     m.columns[2].Width = statusColumnWidth
-    m.columns[3].Width = durationColumnWidth
+    m.columns[3].Width = sizeColumnWidth
+    m.columns[4].Width = durationColumnWidth
 
     m.table.SetColumns(m.columns)
 }

@@ -196,8 +196,10 @@ func (m *HARViewModel) renderSplitPanel() string {
 // renderSearchPanel creates the search input panel with pink border styling.
 // The panel takes 30% of the vertical space at the bottom of the screen.
 func (m *HARViewModel) renderSearchPanel() string {
+    searchHeight := m.calculateSearchPanelHeight()
     searchStyle := lipgloss.NewStyle().
         Width(m.width).
+        Height(searchHeight).
         BorderStyle(lipgloss.NormalBorder()).
         BorderForeground(RGBPink).
         Padding(0, 1)

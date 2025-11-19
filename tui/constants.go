@@ -9,7 +9,8 @@ const (
 
 	methodColumnWidth   = 8
 	statusColumnWidth   = 10
-	durationColumnWidth = 10
+	sizeColumnWidth     = 10
+	durationColumnWidth = 11
 
 	// Search panel dimensions
 	searchPanelHeightRatio = 0.3  // 30% of vertical space
