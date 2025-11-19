@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea/v2"
@@ -53,9 +54,17 @@ func (m *HARViewModel) startIndexing() tea.Cmd {
 }
 
 func (m *HARViewModel) renderLoadingView() string {
-	spinnerStyle := lipgloss.NewStyle().
+	// border around the whole screen
+	borderStyle := lipgloss.NewStyle().
 		Width(m.width).
 		Height(m.height).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(RGBBlue)
+
+	// centered content container
+	contentStyle := lipgloss.NewStyle().
+		Width(m.width - 4).
+		Height(m.height - 4).
 		Align(lipgloss.Center, lipgloss.Center)
 
 	titleStyle := lipgloss.NewStyle().
@@ -65,19 +74,24 @@ func (m *HARViewModel) renderLoadingView() string {
 	fileInfoStyle := lipgloss.NewStyle().
 		Foreground(RGBGrey)
 
-	title := titleStyle.Render("Loading HAR File")
-	fileInfo := fileInfoStyle.Render(fmt.Sprintf("\n%s", m.fileName))
+	messageStyle := lipgloss.NewStyle().
+		Foreground(RGBBlue)
 
-	spinnerText := fmt.Sprintf("%s %s%s", m.loadingSpinner.View(), title, fileInfo)
+	// build centered content
+	var content strings.Builder
+	content.WriteString(m.loadingSpinner.View())
+	content.WriteString(" ")
+	content.WriteString(titleStyle.Render("Loading HAR File"))
+	content.WriteString("\n")
+	content.WriteString(fileInfoStyle.Render(m.fileName))
 
 	if m.indexingMessage != "" {
-		messageStyle := lipgloss.NewStyle().
-			Foreground(RGBBlue).
-			MarginTop(2)
-		spinnerText += "\n\n" + messageStyle.Render(m.indexingMessage)
+		content.WriteString("\n\n")
+		content.WriteString(messageStyle.Render(m.indexingMessage))
 	}
 
-	return spinnerStyle.Render(spinnerText)
+	centeredContent := contentStyle.Render(content.String())
+	return borderStyle.Render(centeredContent)
 }
 
 func (m *HARViewModel) renderErrorView() string {
