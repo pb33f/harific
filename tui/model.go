@@ -21,6 +21,7 @@ const (
     ViewModeTable ViewMode = iota
     ViewModeTableWithSplit
     ViewModeTableWithSearch
+    ViewModeTableFiltered // viewing filtered results without search panel
 )
 
 // ViewportFocus represents which viewport has focus
@@ -336,16 +337,18 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             // don't return - let Q fall through to input handling in search mode
 
         case "s":
-            if m.loadState == LoadStateLoaded && m.viewMode == ViewModeTable {
-                cmd := m.toggleSearchView()
-                return m, cmd
+            if m.loadState == LoadStateLoaded {
+                if m.viewMode == ViewModeTable || m.viewMode == ViewModeTableFiltered {
+                    cmd := m.toggleSearchView()
+                    return m, cmd
+                }
             }
-            return m, nil
+            // don't return - let 's' fall through to input handling in search mode
 
         case "enter", "return":
             if m.loadState == LoadStateLoaded {
-                if m.viewMode == ViewModeTable {
-                    // In table mode, Enter opens split view
+                if m.viewMode == ViewModeTable || m.viewMode == ViewModeTableFiltered {
+                    // In table or filtered mode, Enter opens split view
                     m.toggleSplitView()
                     if m.viewMode == ViewModeTableWithSplit {
                         if err := m.loadSelectedEntry(); err != nil {
@@ -366,9 +369,34 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             return m, nil
 
         case "esc":
-            if m.loadState == LoadStateLoaded && m.viewMode != ViewModeTable {
-                cmd := m.toggleSearchView()
-                return m, cmd
+            if m.loadState == LoadStateLoaded {
+                if m.viewMode == ViewModeTableWithSearch {
+                    // first Esc: close search panel, keep filters (go to Filtered mode)
+                    m.viewMode = ViewModeTableFiltered
+                    m.updateTableDimensions()
+                    m.debounceID++ // cancel pending timers
+                    m.searchInput.Blur()
+                    return m, nil
+                } else if m.viewMode == ViewModeTableFiltered {
+                    // second Esc: clear filters, return to full table
+                    m.viewMode = ViewModeTable
+                    if m.searchCancel != nil {
+                        m.searchCancel()
+                        m.searchCancel = nil
+                    }
+                    m.searchFilter.Clear()
+                    m.applyFilters()
+                    return m, nil
+                } else if m.viewMode == ViewModeTableWithSplit {
+                    // Esc in split view: return to filtered or table based on active filters
+                    if m.searchFilter.IsActive() {
+                        m.viewMode = ViewModeTableFiltered
+                    } else {
+                        m.viewMode = ViewModeTable
+                    }
+                    m.updateTableDimensions()
+                    return m, nil
+                }
             }
             return m, nil
 
@@ -447,6 +475,15 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     // start debounce timer
                     cmds = append(cmds, m.startDebounceTimer())
                 }
+            }
+
+        case ViewModeTableFiltered:
+            // in filtered mode, allow table navigation
+            m.table, cmd = m.table.Update(msg)
+            cmds = append(cmds, cmd)
+
+            if m.table.Cursor() != m.selectedIndex {
+                m.selectedIndex = m.table.Cursor()
             }
 
         case ViewModeTable:
@@ -555,13 +592,18 @@ func (m *HARViewModel) updateViewportDimensions() {
 }
 
 func (m *HARViewModel) toggleSplitView() {
-    if m.viewMode == ViewModeTable {
+    if m.viewMode == ViewModeTable || m.viewMode == ViewModeTableFiltered {
         m.viewMode = ViewModeTableWithSplit
         m.focusedViewport = ViewportFocusRequest // Reset focus to request when opening
         m.updateTableDimensions()
         m.updateViewportDimensions()
     } else {
-        m.viewMode = ViewModeTable
+        // return to filtered mode if filters are active, otherwise table
+        if m.searchFilter.IsActive() {
+            m.viewMode = ViewModeTableFiltered
+        } else {
+            m.viewMode = ViewModeTable
+        }
         m.updateTableDimensions()
     }
 }
@@ -574,46 +616,22 @@ func (m *HARViewModel) toggleViewportFocus() {
     }
 }
 
-// toggleSearchView switches between table-only mode and table-with-search mode.
+// toggleSearchView opens search mode from table or filtered mode.
 // When entering search mode, the table height is adjusted to 70% of available space
 // and the search input receives focus. The colorized table is cached to improve performance.
 func (m *HARViewModel) toggleSearchView() tea.Cmd {
-    if m.viewMode == ViewModeTable {
-        m.viewMode = ViewModeTableWithSearch
-        m.updateTableDimensions()
-        // cache the colorized table to avoid re-rendering on every keystroke
-        tableView := m.table.View()
-        m.cachedColorizedTable = ColorizeHARTableOutput(tableView, m.table.Cursor(), m.rows)
-        m.cachedTableCursor = m.table.Cursor()
-        // reset search state and focus input
-        m.searchCursor = searchCursorInput
-        m.searchQuery = ""
-        m.searchOptions = [4]bool{} // reset all checkboxes to unchecked
-        m.searchInput.SetValue("")
-        return m.searchInput.Focus()
-    } else {
-        m.viewMode = ViewModeTable
-        m.updateTableDimensions()
-
-        // cancel any pending search operations
-        m.debounceID++ // invalidate any pending debounce timers
-        if m.searchCancel != nil {
-            m.searchCancel()
-            m.searchCancel = nil
-        }
-
-        // clear search filter and restore full table
-        m.searchFilter.Clear()
-        m.applyFilters()
-
-        // invalidate cache when leaving search mode
-        m.cachedColorizedTable = ""
-        m.cachedTableCursor = -1
-
-        // blur input
-        m.searchInput.Blur()
-        return nil
-    }
+    m.viewMode = ViewModeTableWithSearch
+    m.updateTableDimensions()
+    // cache the colorized table to avoid re-rendering on every keystroke
+    tableView := m.table.View()
+    m.cachedColorizedTable = ColorizeHARTableOutput(tableView, m.table.Cursor(), m.rows)
+    m.cachedTableCursor = m.table.Cursor()
+    // reset search state and focus input
+    m.searchCursor = searchCursorInput
+    m.searchQuery = ""
+    m.searchOptions = [4]bool{} // reset all checkboxes to unchecked
+    m.searchInput.SetValue("")
+    return m.searchInput.Focus()
 }
 
 func (m *HARViewModel) loadSelectedEntry() error {

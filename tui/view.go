@@ -130,7 +130,12 @@ func (m *HARViewModel) renderStatusBar() string {
         parts = append(parts, "←/→: Jump to Input")
         parts = append(parts, "Space: Toggle")
         parts = append(parts, "Enter: Search")
-        parts = append(parts, "Esc: Close")
+        parts = append(parts, "Esc: Review Results")
+    } else if m.viewMode == ViewModeTableFiltered {
+        parts = append(parts, "↑/↓: Navigate")
+        parts = append(parts, "Enter: View Details")
+        parts = append(parts, "s: Search")
+        parts = append(parts, "Esc: Clear Filters")
     } else {
         parts = append(parts, "↑/↓: Scroll")
         parts = append(parts, "Tab: Switch Panel")
