@@ -19,6 +19,7 @@ var (
 	maxDepth       int
 	maxNodes       int
 	showInjections bool
+	fatMode        bool
 )
 
 func main() {
@@ -39,6 +40,7 @@ It can inject specific search terms into known locations for testing search func
 	rootCmd.Flags().IntVar(&maxDepth, "max-depth", 3, "Maximum JSON nesting depth")
 	rootCmd.Flags().IntVar(&maxNodes, "max-nodes", 10, "Maximum JSON nodes per level")
 	rootCmd.Flags().BoolVar(&showInjections, "show-injections", true, "Show injection details after generation")
+	rootCmd.Flags().BoolVar(&fatMode, "fat-mode", false, "Generate huge entries (~100KB each) with base64 blobs")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -80,9 +82,14 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		MaxJSONDepth:       maxDepth,
 		MaxJSONNodes:       maxNodes,
 		Seed:               seed,
+		FatMode:            fatMode,
 	}
 
-	fmt.Printf("Generating HAR file with %d entries...\n", entryCount)
+	fmt.Printf("Generating HAR file with %d entries", entryCount)
+	if fatMode {
+		fmt.Printf(" (fat mode: ~100KB per entry)")
+	}
+	fmt.Println("...")
 	if len(injectTerms) > 0 {
 		fmt.Printf("Injecting terms: %v\n", injectTerms)
 	}

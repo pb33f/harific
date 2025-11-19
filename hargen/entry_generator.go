@@ -14,6 +14,7 @@ type EntryGenerator struct {
 	dict    *Dictionary
 	jsonGen *JSONGenerator
 	rng     *rand.Rand
+	fatMode bool
 }
 
 // NewEntryGenerator creates a new entry generator
@@ -22,7 +23,13 @@ func NewEntryGenerator(dict *Dictionary, jsonGen *JSONGenerator, rng *rand.Rand)
 		dict:    dict,
 		jsonGen: jsonGen,
 		rng:     rng,
+		fatMode: false,
 	}
+}
+
+// SetFatMode enables fat mode for generating large entries
+func (eg *EntryGenerator) SetFatMode(enabled bool) {
+	eg.fatMode = enabled
 }
 
 // GenerateEntry creates a single HAR entry with optional term injection
@@ -120,7 +127,31 @@ func (eg *EntryGenerator) generateURL() string {
 		url += "/" + p
 	}
 
+	// 60% chance to add a file extension (40% remain as API endpoints)
+	if eg.rng.Float32() < 0.6 {
+		url += eg.randomFileExtension()
+	}
+
 	return url
+}
+
+func (eg *EntryGenerator) randomFileExtension() string {
+	extensions := []string{
+		// Graphics (30%)
+		".png", ".gif", ".webp", ".jpeg", ".jpg", ".svg", ".ico",
+		// JS (20%)
+		".js", ".jsx", ".ts", ".tsx", ".mjs",
+		// CSS (15%)
+		".css", ".scss", ".sass", ".less",
+		// HTML (15%)
+		".html", ".htm",
+		// Fonts (10%)
+		".woff", ".woff2", ".ttf", ".eot", ".otf",
+		// Other (10%)
+		".json", ".xml", ".txt", ".pdf", ".zip",
+	}
+
+	return extensions[eg.rng.Intn(len(extensions))]
 }
 
 func (eg *EntryGenerator) generateIP() string {
@@ -210,7 +241,14 @@ func (eg *EntryGenerator) generateRequestBody() harhar.BodyType {
 }
 
 func (eg *EntryGenerator) generateResponseBody() harhar.BodyResponseType {
-	obj := eg.jsonGen.GenerateRealisticObject("api_response")
+	var obj map[string]interface{}
+
+	if eg.fatMode {
+		obj = eg.jsonGen.GenerateFatObject()
+	} else {
+		obj = eg.jsonGen.GenerateRealisticObject("api_response")
+	}
+
 	content, _ := json.Marshal(obj)
 	return harhar.BodyResponseType{
 		Size:     len(content),

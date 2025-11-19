@@ -63,6 +63,7 @@ type GenerateOptions struct {
 	MaxJSONDepth       int                   // max nesting level (default: 3)
 	MaxJSONNodes       int                   // max nodes per level (default: 10)
 	Seed               int64                 // random seed for reproducibility (0 = use time)
+	FatMode            bool                  // generate ~100KB per entry (huge JSON + base64 blobs)
 }
 
 // DefaultGenerateOptions provides sensible defaults
@@ -151,7 +152,9 @@ func GenerateInMemory(opts GenerateOptions) (*harhar.HAR, []InjectedTerm, error)
 
 	// create generators with local rng
 	jsonGen := NewJSONGenerator(dict, opts.MaxJSONDepth, opts.MaxJSONNodes, rng)
+	jsonGen.SetFatMode(opts.FatMode)
 	entryGen := NewEntryGenerator(dict, jsonGen, rng)
+	entryGen.SetFatMode(opts.FatMode)
 
 	// distribute injection terms across entries
 	injectionPlan := createInjectionPlan(opts.InjectTerms, opts.EntryCount, opts.InjectionLocations, rng)

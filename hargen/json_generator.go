@@ -12,6 +12,7 @@ type JSONGenerator struct {
 	maxDepth int
 	maxNodes int
 	rng      *rand.Rand
+	fatMode  bool
 }
 
 // NewJSONGenerator creates a new JSON generator
@@ -28,7 +29,13 @@ func NewJSONGenerator(dict *Dictionary, maxDepth, maxNodes int, rng *rand.Rand) 
 		maxDepth: maxDepth,
 		maxNodes: maxNodes,
 		rng:      rng,
+		fatMode:  false,
 	}
+}
+
+// SetFatMode enables fat mode for generating huge objects
+func (jg *JSONGenerator) SetFatMode(enabled bool) {
+	jg.fatMode = enabled
 }
 
 // GenerateObject creates a random JSON object with dictionary words
@@ -151,6 +158,102 @@ func (jg *JSONGenerator) GenerateRealisticValue(fieldName string) string {
 
 	// default to random word
 	return jg.dict.RandomWord(jg.rng)
+}
+
+// GenerateFatObject creates a huge JSON object (~100KB) with base64 blobs
+func (jg *JSONGenerator) GenerateFatObject() map[string]interface{} {
+	obj := map[string]interface{}{
+		"status":    "success",
+		"timestamp": "2025-01-01T00:00:00Z",
+		"metadata":  jg.GenerateObject(2),
+	}
+
+	// add 3-5 large base64 blob fields (~25KB each)
+	blobCount := jg.rng.Intn(3) + 3
+	for i := 0; i < blobCount; i++ {
+		blobKey := fmt.Sprintf("blob_%d", i)
+		obj[blobKey] = jg.generateBase64Blob(25000) // 25KB base64 string
+	}
+
+	// add large arrays with nested objects
+	arrayCount := jg.rng.Intn(3) + 2
+	for i := 0; i < arrayCount; i++ {
+		arrayKey := fmt.Sprintf("items_%d", i)
+		obj[arrayKey] = jg.generateLargeArray(50) // 50 items
+	}
+
+	// add deeply nested object tree
+	obj["nested_data"] = jg.generateDeepObject(5, 20) // depth 5, 20 nodes per level
+
+	return obj
+}
+
+// generateBase64Blob creates a base64-encoded string of specified byte size
+func (jg *JSONGenerator) generateBase64Blob(sizeBytes int) string {
+	// base64 encoding is ~4/3 the size, so generate 3/4 of target
+	rawSize := (sizeBytes * 3) / 4
+	bytes := make([]byte, rawSize)
+	jg.rng.Read(bytes)
+
+	// encode to base64
+	return fmt.Sprintf("data:image/png;base64,%s", encodeBase64(bytes))
+}
+
+// simple base64 encoding (using standard chars)
+func encodeBase64(data []byte) string {
+	const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+	var result strings.Builder
+	result.Grow(((len(data) + 2) / 3) * 4)
+
+	for i := 0; i < len(data); i += 3 {
+		b1 := data[i]
+		b2 := byte(0)
+		b3 := byte(0)
+
+		if i+1 < len(data) {
+			b2 = data[i+1]
+		}
+		if i+2 < len(data) {
+			b3 = data[i+2]
+		}
+
+		result.WriteByte(base64Chars[b1>>2])
+		result.WriteByte(base64Chars[((b1&0x03)<<4)|(b2>>4)])
+		result.WriteByte(base64Chars[((b2&0x0f)<<2)|(b3>>6)])
+		result.WriteByte(base64Chars[b3&0x3f])
+	}
+
+	return result.String()
+}
+
+// generateLargeArray creates an array with many nested objects
+func (jg *JSONGenerator) generateLargeArray(count int) []interface{} {
+	arr := make([]interface{}, count)
+	for i := 0; i < count; i++ {
+		arr[i] = jg.GenerateObject(2) // nested objects
+	}
+	return arr
+}
+
+// generateDeepObject creates a deeply nested object with many nodes
+func (jg *JSONGenerator) generateDeepObject(depth, nodesPerLevel int) map[string]interface{} {
+	if depth == 0 {
+		return map[string]interface{}{
+			jg.dict.RandomWord(jg.rng): jg.dict.RandomWord(jg.rng),
+		}
+	}
+
+	obj := make(map[string]interface{}, nodesPerLevel)
+	for i := 0; i < nodesPerLevel; i++ {
+		key := jg.dict.RandomWord(jg.rng)
+		if i%3 == 0 && depth > 1 {
+			obj[key] = jg.generateDeepObject(depth-1, nodesPerLevel/2)
+		} else {
+			obj[key] = jg.dict.RandomWord(jg.rng)
+		}
+	}
+
+	return obj
 }
 
 // GenerateRealisticObject creates a more realistic JSON object with common field patterns

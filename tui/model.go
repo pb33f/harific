@@ -32,6 +32,14 @@ const (
     ViewportFocusResponse
 )
 
+// ModalType represents which modal is currently open
+type ModalType int
+
+const (
+    ModalNone ModalType = iota
+    ModalFileTypeFilter
+)
+
 // Search messages for async search execution
 type searchDebounceMsg struct {
 	id int64
@@ -86,6 +94,12 @@ type HARViewModel struct {
     searchCancel   context.CancelFunc
     debounceID     int64 // increments on each keystroke to cancel stale debounces
 
+    // file type filter modal
+    activeModal      ModalType
+    fileTypeFilter   *FileTypeFilter
+    filterCheckboxes [6]bool // Graphics, JS, CSS, Fonts, HTML, AllFiles
+    filterCursor     int     // which checkbox is focused in modal
+
     // cache for colorized table during search mode
     cachedColorizedTable string
     cachedTableCursor    int
@@ -125,10 +139,13 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
         loadingSpinner:  createLoadingSpinner(),
         indexingMessage: "Building index...",
         searchInput:     searchInput,
-        searchCursor:    searchCursorInput,
-        searchFilter:    NewSearchFilter(),
-        filterChain:     NewFilterChain(),
-        searchSpinner:   searchSpinner,
+        searchCursor:     searchCursorInput,
+        searchFilter:     NewSearchFilter(),
+        filterChain:      NewFilterChain(),
+        searchSpinner:    searchSpinner,
+        activeModal:      ModalNone,
+        fileTypeFilter:   NewFileTypeFilter(),
+        filterCheckboxes: [6]bool{true, true, true, true, true, true}, // all enabled by default
     }
 
     return m, nil
@@ -195,7 +212,7 @@ func (m *HARViewModel) startDebounceTimer() tea.Cmd {
     currentID := m.debounceID
 
     return func() tea.Msg {
-        time.Sleep(500 * time.Millisecond)
+        time.Sleep(20 * time.Millisecond)
         return searchDebounceMsg{id: currentID}
     }
 }
@@ -205,6 +222,10 @@ func (m *HARViewModel) applyFilters() {
 
     if m.searchFilter.IsActive() {
         m.filterChain.Add(m.searchFilter)
+    }
+
+    if m.fileTypeFilter.IsActive() {
+        m.filterChain.Add(m.fileTypeFilter)
     }
 
     // future filters added here
@@ -323,7 +344,14 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         }
 
     case tea.KeyPressMsg:
-        switch msg.String() {
+        key := msg.String()
+
+        // modal keys have priority
+        if handled, cmd := m.handleFilterModalKeys(key); handled {
+            return m, cmd
+        }
+
+        switch key {
         case "ctrl+c":
             m.quitting = true
             return m, tea.Quit
@@ -447,6 +475,23 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             }
             return m, nil
 
+        case "f":
+            // lowercase f: blocked in search mode (would type 'f' in input)
+            if m.loadState == LoadStateLoaded && m.viewMode != ViewModeTableWithSearch {
+                m.activeModal = ModalFileTypeFilter
+                m.filterCursor = 0
+                return m, nil
+            }
+            // in search mode, let 'f' fall through to input
+
+        case "F": // Shift+F
+            // Shift+F opens filter modal from ANY mode (including search)
+            if m.loadState == LoadStateLoaded {
+                m.activeModal = ModalFileTypeFilter
+                m.filterCursor = 0
+                return m, nil
+            }
+
         case " ", "space":
             if m.loadState == LoadStateLoaded && m.viewMode == ViewModeTableWithSearch && m.searchCursor > searchCursorInput {
                 m.toggleCheckbox()
@@ -514,19 +559,39 @@ func (m *HARViewModel) View() string {
         return ""
     }
 
+    var baseView string
+
     switch m.loadState {
     case LoadStateLoading:
-        return m.renderLoadingView()
+        baseView = m.renderLoadingView()
     case LoadStateError:
-        return m.renderErrorView()
+        baseView = m.renderErrorView()
     case LoadStateLoaded:
         if !m.ready {
-            return "Initializing..."
+            baseView = "Initializing..."
+        } else {
+            baseView = m.render()
         }
-        return m.render()
     default:
-        return "Unknown state"
+        baseView = "Unknown state"
     }
+
+    // create layers for modal system
+    layers := []*lipgloss.Layer{
+        lipgloss.NewLayer(baseView),
+    }
+
+    // add modal layer if active
+    if m.activeModal != ModalNone {
+        modal := m.renderActiveModal()
+        if modal != "" {
+            x, y := m.calculateModalPosition()
+            layers = append(layers, lipgloss.NewLayer(modal).X(x).Y(y).Z(1))
+        }
+    }
+
+    canvas := lipgloss.NewCanvas(layers...)
+    return canvas.Render()
 }
 
 func (m *HARViewModel) initializeTable() {
@@ -616,6 +681,36 @@ func (m *HARViewModel) toggleViewportFocus() {
     }
 }
 
+func (m *HARViewModel) calculateModalPosition() (int, int) {
+    modalWidth := int(float64(m.width) * 0.4)
+    modalHeight := int(float64(m.height) * 0.9)
+
+    // position on right with padding
+    rightPadding := 2
+    x := m.width - modalWidth - rightPadding
+
+    // center vertically
+    y := (m.height - modalHeight) / 2
+
+    if x < 0 {
+        x = 0
+    }
+    if y < 0 {
+        y = 0
+    }
+
+    return x, y
+}
+
+func (m *HARViewModel) renderActiveModal() string {
+    switch m.activeModal {
+    case ModalFileTypeFilter:
+        return m.renderFilterModal()
+    default:
+        return ""
+    }
+}
+
 // toggleSearchView opens search mode from table or filtered mode.
 // When entering search mode, the table height is adjusted to 70% of available space
 // and the search input receives focus. The colorized table is cached to improve performance.
@@ -629,7 +724,7 @@ func (m *HARViewModel) toggleSearchView() tea.Cmd {
     // reset search state and focus input
     m.searchCursor = searchCursorInput
     m.searchQuery = ""
-    m.searchOptions = [4]bool{} // reset all checkboxes to unchecked
+    m.searchOptions = [4]bool{false, false, false, true} // Live Search ON by default
     m.searchInput.SetValue("")
     return m.searchInput.Focus()
 }
