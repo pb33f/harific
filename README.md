@@ -34,7 +34,7 @@ Driven by frustration with diagnosing customer problems from browser experiences
 
 ## Architecture
 
-### Why HARific is Fast and Memory Efficient
+### Indexing
 
 ```mermaid
 flowchart TB
@@ -122,50 +122,6 @@ flowchart TB
     style FP fill:#e1f5ff
 ```
 
-### Terminal UI Architecture
-
-```mermaid
-flowchart TB
-    subgraph "Bubbletea Framework"
-        Model[HARViewModel] --> Update[Update Loop]
-        Update --> View[View Renderer]
-        View --> Terminal[Terminal Display]
-
-        Keyboard[Keyboard Input] --> Messages[Tea Messages]
-        Messages --> Update
-    end
-
-    subgraph "View Modes"
-        Table[Table View]
-        Split[Split View<br/>Request | Response]
-        Search[Search Mode]
-        Filter[Filter Modal]
-    end
-
-    subgraph "Components"
-        TableComp[Colorized Table<br/>Method coloring]
-        Viewport1[Request Viewport<br/>Scrollable]
-        Viewport2[Response Viewport<br/>Scrollable]
-        SearchInput[Search Input<br/>Live debouncing]
-        Progress[Progress Bar<br/>Index building]
-    end
-
-    Model --> Table
-    Model --> Split
-    Model --> Search
-    Model --> Filter
-
-    Table --> TableComp
-    Split --> Viewport1
-    Split --> Viewport2
-    Search --> SearchInput
-    Model --> Progress
-
-    style Model fill:#e1ffe1
-    style Terminal fill:#e1f5ff
-    style TableComp fill:#ffe1e1
-```
-
 ## Performance
 
 | File Size | Entries | Time   | Throughput  | Time/Entry |
@@ -175,62 +131,7 @@ flowchart TB
 | 2GB       | 28,262  | 5.57s  | 367.93 MB/s | 196.96 μs  |
 | 5GB       | 70,689  | 13.62s | 375.80 MB/s | 192.73 μs  |
 
-### Key Performance Characteristics
-
 - **Consistent Performance**: ~370 MB/s regardless of file size
 - **Linear Scaling**: Processing time scales perfectly with file size
 - **Predictable**: ~195 microseconds per entry consistently
 - **Memory Efficient**: ~57MB for 1.3GB file 
-
-## Technical Details
-
-### Why It's Fast
-
-1. **Streaming Architecture** - Never loads entire file into memory
-2. **Offset-based Indexing** - O(1) random access to any entry
-3. **String Interning** - 256-sharded hash tables reduce memory duplication
-4. **xxHash** - 13 GB/s hashing speed (vs 450 MB/s for MD5)
-5. **Lazy Loading** - Only reads entries when requested
-6. **Worker Pools** - Parallel search across CPU cores
-7. **Buffer Pooling** - Reuses memory via sync.Pool
-
-### Memory Efficiency
-
-```mermaid
-graph LR
-    subgraph "Traditional Approach"
-        T1[Load Entire File] --> T2[Parse All JSON]
-        T2 --> T3[Hold in Memory]
-        T3 --> T4[5GB File = 5GB+ RAM]
-    end
-
-    subgraph "HARific Approach"
-        H1[Build Index] --> H2[~10MB Metadata]
-        H2 --> H3[Load on Demand]
-        H3 --> H4[5GB File = ~50MB RAM]
-    end
-
-    style T4 fill:#ffe1e1
-    style H4 fill:#e1ffe1
-```
-
-### Search Performance Optimization
-
-```mermaid
-flowchart LR
-    subgraph "Search Optimizations"
-        O1[Metadata First<br/>Skip 30% disk reads]
-        O2[Early Termination<br/>First match returns]
-        O3[Pattern Compilation<br/>Compile once, use many]
-        O4[Batch Processing<br/>Amortize overhead]
-        O5[Buffer Reuse<br/>Zero allocations]
-    end
-
-    O1 --> Perf[10K entries<br/>searched in<br/>~100ms]
-    O2 --> Perf
-    O3 --> Perf
-    O4 --> Perf
-    O5 --> Perf
-
-    style Perf fill:#e1f5ff
-```
