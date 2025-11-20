@@ -129,7 +129,7 @@ type HARViewModel struct {
 func NewHARViewModel(fileName string) (*HARViewModel, error) {
     columns := []table.Column{
         {Title: "Method", Width: methodColumnWidth},
-        {Title: "URL", Width: maxURLDisplayLength},
+        {Title: "URL", Width: 50}, // Initial width, will be adjusted dynamically
         {Title: "Status", Width: statusColumnWidth},
         {Title: "Size", Width: sizeColumnWidth},
         {Title: "Duration", Width: durationColumnWidth},
@@ -798,15 +798,16 @@ func (m *HARViewModel) toggleViewportFocus() {
 }
 
 func (m *HARViewModel) calculateModalPosition() (int, int) {
-    modalWidth := int(float64(m.width) * 0.4)
-    modalHeight := int(float64(m.height) * 0.9)
+    // Fixed modal width to match renderFilterModal
+    modalWidth := 30
 
     // position on right with padding (for filter modal)
     rightPadding := 2
     x := m.width - modalWidth - rightPadding
 
-    // center vertically
-    y := (m.height - modalHeight) / 2
+    // position near top with small padding
+    topPadding := 2
+    y := topPadding
 
     if x < 0 {
         x = 0

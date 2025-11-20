@@ -53,14 +53,24 @@ func formatURL(fullURL string, terminalWidth int) string {
 		return "/"
 	}
 
+	// Calculate the available width for URL column
+	// Account for all other columns and borders/padding
+	availableWidth := terminalWidth - methodColumnWidth - statusColumnWidth - sizeColumnWidth - durationColumnWidth - borderPadding - 6
+	if availableWidth < minURLColumnWidth {
+		availableWidth = minURLColumnWidth
+	}
+	// Don't limit to maxURLColumnWidth anymore - use all available space
+
 	u, err := url.Parse(fullURL)
 	if err != nil {
-		if len(fullURL) > maxURLDisplayLength {
-			return fullURL[:maxURLDisplayLength-3] + "..."
+		// If parsing fails, just truncate the raw URL
+		if len(fullURL) > availableWidth {
+			return fullURL[:availableWidth-3] + "..."
 		}
 		return fullURL
 	}
 
+	// Build the display URL with path and query
 	path := u.Path
 	if path == "" {
 		path = "/"
@@ -68,15 +78,6 @@ func formatURL(fullURL string, terminalWidth int) string {
 
 	if u.RawQuery != "" {
 		path = path + "?" + u.RawQuery
-	}
-
-	// 12 = borderPadding + column spacing (updated for 5 columns)
-	availableWidth := terminalWidth - methodColumnWidth - statusColumnWidth - sizeColumnWidth - durationColumnWidth - 12
-	if availableWidth < minURLColumnWidth {
-		availableWidth = minURLColumnWidth
-	}
-	if availableWidth > maxURLColumnWidth {
-		availableWidth = maxURLColumnWidth
 	}
 
 	if len(path) > availableWidth {

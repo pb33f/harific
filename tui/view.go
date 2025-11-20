@@ -10,7 +10,7 @@ import (
 
 const (
     maxBodyDisplayLength = 5000
-    maxURLDisplayLength  = 50
+    // Removed maxURLDisplayLength - URLs should use available column width
 )
 
 func truncateBody(content string, maxLen int) string {

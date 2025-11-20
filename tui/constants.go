@@ -4,7 +4,7 @@ const (
 	tableVerticalPadding = 5 // title(2) + newlines(2) + footer(1)
 	splitPanelPadding    = 2
 	minURLColumnWidth    = 20
-	maxURLColumnWidth    = 100
+	// Removed maxURLColumnWidth - use all available space
 	borderPadding        = 6
 
 	methodColumnWidth   = 8

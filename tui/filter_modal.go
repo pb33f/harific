@@ -11,7 +11,8 @@ import (
 var fileTypeCategories = []string{"Graphics", "JS", "CSS", "Fonts", "Markup", "All Files"}
 
 func (m *HARViewModel) renderFilterModal() string {
-	modalWidth := int(float64(m.width) * 0.4)
+	// Fixed modal width for consistent appearance
+	modalWidth := 30
 
 	modalStyle := lipgloss.NewStyle().
 		Width(modalWidth).
@@ -33,16 +34,7 @@ func (m *HARViewModel) renderFilterModal() string {
 	content.WriteString(titleStyle.Render("File Type Filters"))
 	content.WriteString("\n\n")
 
-	// calculate grid columns based on modal width
-	cols := 1
-	if modalWidth > 60 {
-		cols = 2
-	}
-	if modalWidth > 90 {
-		cols = 3
-	}
-
-	// render checkboxes in grid
+	// Always use single column layout for clean appearance
 	for i, category := range fileTypeCategories {
 		cursor := " "
 		if m.filterCursor == i {
@@ -54,24 +46,14 @@ func (m *HARViewModel) renderFilterModal() string {
 			checkbox = "[ ]"
 		}
 
-		line := fmt.Sprintf("%s %s %s", cursor, checkbox, category)
+		line := fmt.Sprintf("%s %s %-12s", cursor, checkbox, category)
 
 		if m.filterCursor == i {
 			line = highlightStyle.Render(line)
 		}
 
-		// pad to column width for grid alignment
-		colWidth := (modalWidth - 4) / cols
-		if len(line) < colWidth {
-			line = line + strings.Repeat(" ", colWidth-lipgloss.Width(line))
-		}
-
 		content.WriteString(line)
-
-		// newline after each row in grid
-		if (i+1)%cols == 0 || i == len(fileTypeCategories)-1 {
-			content.WriteString("\n")
-		}
+		content.WriteString("\n")
 	}
 
 	// add Reset option
