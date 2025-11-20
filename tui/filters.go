@@ -94,12 +94,19 @@ func (fc *FilterChain) HasActiveFilters() bool {
 }
 
 // BuildFilteredRows applies all active filters to build a filtered row set
-func (fc *FilterChain) BuildFilteredRows(allEntries []*motor.EntryMetadata, allRows []table.Row) []table.Row {
+// Returns both the filtered rows and a mapping from filtered index to original index
+func (fc *FilterChain) BuildFilteredRows(allEntries []*motor.EntryMetadata, allRows []table.Row) ([]table.Row, []int) {
 	if !fc.HasActiveFilters() {
-		return allRows
+		// No filters active - return all rows with identity mapping
+		indices := make([]int, len(allRows))
+		for i := range indices {
+			indices[i] = i
+		}
+		return allRows, indices
 	}
 
 	filtered := make([]table.Row, 0, len(allRows))
+	indices := make([]int, 0, len(allRows))
 
 	for i, row := range allRows {
 		if i >= len(allEntries) {
@@ -117,10 +124,11 @@ func (fc *FilterChain) BuildFilteredRows(allEntries []*motor.EntryMetadata, allR
 
 		if passesAll {
 			filtered = append(filtered, row)
+			indices = append(indices, i) // track original index
 		}
 	}
 
-	return filtered
+	return filtered, indices
 }
 
 // FileTypeFilter filters entries based on file extensions

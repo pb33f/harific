@@ -514,11 +514,9 @@ func (b *DefaultIndexBuilder) parseResponseContent(decoder HARDecoder, metadata 
 
 		case keyText, keyEncoding:
 			// skip without allocating the string value
-			var discard json.RawMessage
-			if err := decoder.Decode(&discard); err != nil {
+			if err := helper.skipValue(decoder); err != nil {
 				return err
 			}
-			discard = nil
 
 		default:
 			if err := helper.skipValue(decoder); err != nil {

@@ -61,10 +61,11 @@ type searchErrorMsg struct {
 }
 
 type HARViewModel struct {
-    table      table.Model
-    allEntries []*motor.EntryMetadata
-    rows       []table.Row
-    columns    []table.Column
+    table           table.Model
+    allEntries      []*motor.EntryMetadata
+    rows            []table.Row
+    columns         []table.Column
+    filteredIndices []int // maps filtered table row position to original entry index
 
     streamer      motor.HARStreamer
     index         *motor.Index
@@ -252,8 +253,9 @@ func (m *HARViewModel) applyFilters() {
     // future filters added here
     // if m.methodFilter.IsActive() { m.filterChain.Add(m.methodFilter) }
 
-    filteredRows := m.filterChain.BuildFilteredRows(m.allEntries, m.rows)
+    filteredRows, indices := m.filterChain.BuildFilteredRows(m.allEntries, m.rows)
     m.table.SetRows(filteredRows)
+    m.filteredIndices = indices
 
     // invalidate colorized table cache when filters change
     m.cachedColorizedTable = ""
@@ -866,12 +868,18 @@ func (m *HARViewModel) toggleSearchView() tea.Cmd {
 }
 
 func (m *HARViewModel) loadSelectedEntry() error {
-    if m.selectedIndex >= len(m.allEntries) {
+    // Get the actual entry index, accounting for filtering
+    actualIndex := m.selectedIndex
+    if len(m.filteredIndices) > 0 && m.selectedIndex < len(m.filteredIndices) {
+        actualIndex = m.filteredIndices[m.selectedIndex]
+    }
+
+    if actualIndex >= len(m.allEntries) {
         return nil
     }
 
     ctx := context.Background()
-    entry, err := m.streamer.GetEntry(ctx, m.selectedIndex)
+    entry, err := m.streamer.GetEntry(ctx, actualIndex)
     if err != nil {
         return err
     }

@@ -18,6 +18,12 @@ func (m *HARViewModel) buildTableRows() {
 	}
 
 	m.rows = rows
+
+	// Initialize filteredIndices with identity mapping (no filters active initially)
+	m.filteredIndices = make([]int, len(m.allEntries))
+	for i := range m.filteredIndices {
+		m.filteredIndices[i] = i
+	}
 }
 
 func formatEntryRow(entry *motor.EntryMetadata, terminalWidth int) table.Row {

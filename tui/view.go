@@ -145,9 +145,22 @@ func (m *HARViewModel) renderStatusBar() string {
 
     parts = append(parts, "q: Quit")
 
-    if m.selectedIndex < len(m.allEntries) {
-        info := fmt.Sprintf("Entry %d/%d", m.selectedIndex+1, len(m.allEntries))
-        parts = append(parts, info)
+    // Show correct entry counts based on filtering
+    if len(m.filteredIndices) > 0 {
+        // Filters are active - show filtered position and count
+        if m.selectedIndex < len(m.filteredIndices) {
+            actualIndex := m.filteredIndices[m.selectedIndex]
+            info := fmt.Sprintf("Entry %d/%d (filtered: %d/%d)",
+                actualIndex+1, len(m.allEntries),
+                m.selectedIndex+1, len(m.filteredIndices))
+            parts = append(parts, info)
+        }
+    } else {
+        // No filters - show normal position
+        if m.selectedIndex < len(m.allEntries) {
+            info := fmt.Sprintf("Entry %d/%d", m.selectedIndex+1, len(m.allEntries))
+            parts = append(parts, info)
+        }
     }
 
     // Add focus indicator at the end when in split view

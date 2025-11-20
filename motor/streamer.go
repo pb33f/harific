@@ -106,11 +106,20 @@ func (s *DefaultHARStreamer) GetEntry(ctx context.Context, index int) (*harhar.E
 	}
 
 	metadata := s.index.Entries[index]
-	entry, err := s.reader.ReadAt(metadata.FileOffset, metadata.Length)
-	if err != nil {
+
+	// Use Read with context instead of deprecated ReadAt
+	req := NewReadRequestBuilder().
+		WithOffset(metadata.FileOffset).
+		WithLength(metadata.Length).
+		Build()
+
+	resp := s.reader.Read(ctx, req)
+	if resp.GetError() != nil {
 		atomic.AddInt64(&s.stats.parseErrors, 1)
-		return nil, fmt.Errorf("failed to read entry: %w", err)
+		return nil, fmt.Errorf("failed to read entry: %w", resp.GetError())
 	}
+
+	entry := resp.GetEntry()
 
 	atomic.AddInt64(&s.stats.totalReads, 1)
 	atomic.AddInt64(&s.stats.entriesParsed, 1)

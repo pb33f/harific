@@ -18,7 +18,7 @@ var (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Display version information",
-	Long:  `Display detailed version information about the Braid application.`,
+	Long:  `Display detailed version information about the Harific toolkit.`,
 	Run:   runVersion,
 }
 
@@ -27,10 +27,14 @@ func init() {
 }
 
 func runVersion(cmd *cobra.Command, args []string) {
-	fmt.Printf("Harific - HAR File Viewer and Mock Server\n")
+	fmt.Printf("Harific - Comprehensive HAR File Toolkit\n")
 	fmt.Printf("Version:    %s\n", Version)
 	fmt.Printf("Git Commit: %s\n", GitCommit)
 	fmt.Printf("Build Date: %s\n", BuildDate)
 	fmt.Printf("Go Version: %s\n", runtime.Version())
 	fmt.Printf("OS/Arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Printf("\nCapabilities:\n")
+	fmt.Printf("  • HAR file viewer with TUI\n")
+	fmt.Printf("  • HAR file generator with search term injection\n")
+	fmt.Printf("  • Mock server (coming soon)\n")
 }

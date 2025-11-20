@@ -16,20 +16,36 @@ var (
     Logger  *slog.Logger
 
     rootCmd = &cobra.Command{
-        Use:   "harific <har-file>",
-        Short: "A high-performance HAR file viewer and mock server",
-        Long: `Harific is a terminal user interface and server application that allows
-reading of large HAR files. It can visualize requests and responses in a
-meaningful way, as well as operate as a mock server to replay captured
-responses based on incoming requests.`,
-        Args: cobra.ExactArgs(1),
-        Example: `  harific recording.har
-  harific recording.har --port 8080
-  harific recording.har -p 3000 -v`,
+        Use:   "harific [command] [flags]",
+        Short: "A comprehensive HAR file toolkit",
+        Args:  cobra.ArbitraryArgs, // Allow HAR file as argument for backward compatibility
+        Long: `Harific is a high-performance toolkit for working with HAR (HTTP Archive) files.
+
+Features:
+  • View and explore large HAR files in an interactive terminal UI
+  • Generate test HAR files with configurable options
+  • Inject search terms for testing search functionality
+  • Mock server for replaying captured responses (coming soon)
+
+Usage:
+  harific <har-file>           View a HAR file (backward compatible)
+  harific view <har-file>      Explicitly view a HAR file
+  harific generate [options]   Generate test HAR files
+  harific version              Show version information`,
+        Example: `  # View a HAR file
+  harific recording.har
+  harific view recording.har
+
+  # Generate test HAR files
+  harific generate -n 100 -o test.har
+  harific generate --inject apple,banana --locations url,request.body
+
+  # With verbose logging
+  harific recording.har -v`,
         PersistentPreRun: func(cmd *cobra.Command, args []string) {
             setupLogger()
         },
-        RunE: runHarific,
+        RunE: runRootCommand,
     }
 )
 
@@ -46,7 +62,14 @@ func init() {
     setupLogger()
 }
 
-func runHarific(cmd *cobra.Command, args []string) error {
+func runRootCommand(cmd *cobra.Command, args []string) error {
+    // If no arguments, show banner and help
+    if len(args) == 0 {
+        fmt.Println(RenderColorfulBanner())
+        return cmd.Help()
+    }
+
+    // Backward compatibility: if a file is provided, view it
     harFile := args[0]
 
     if err := ValidateHARFile(harFile); err != nil {

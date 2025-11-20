@@ -81,6 +81,14 @@ func NewEntryReader(filePath string, index *Index) (*DefaultEntryReader, error) 
 func (r *DefaultEntryReader) Read(ctx context.Context, req ReadRequest) ReadResponse {
 	resp := newReadResponse()
 
+	// Check context before starting expensive operations
+	select {
+	case <-ctx.Done():
+		resp.err = ctx.Err()
+		return resp
+	default:
+	}
+
 	// each worker gets isolated file handle from pool (no mutex contention)
 	pooledHandle := r.filePool.Get()
 	if pooledHandle == nil {
@@ -123,6 +131,14 @@ func (r *DefaultEntryReader) Read(ctx context.Context, req ReadRequest) ReadResp
 		// direct read without buffer - less efficient but backward compatible
 		jsonReader = limitReader
 		resp.bytesRead = req.GetLength()
+	}
+
+	// Check context again before expensive JSON decode
+	select {
+	case <-ctx.Done():
+		resp.err = ctx.Err()
+		return resp
+	default:
 	}
 
 	skipReader := &skipLeadingReader{reader: jsonReader}
