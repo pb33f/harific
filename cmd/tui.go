@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/pb33f/braid/tui"
+	"github.com/pb33f/harific/tui"
 )
 
 func LaunchTUI(harFile string) error {

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/v2/table"
-	"github.com/pb33f/braid/motor"
+	"github.com/pb33f/harific/motor"
 )
 
 func (m *HARViewModel) buildTableRows() {

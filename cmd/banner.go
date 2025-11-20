@@ -4,7 +4,7 @@ import (
     "image/color"
 
     "github.com/charmbracelet/lipgloss/v2"
-    "github.com/pb33f/braid/tui"
+    "github.com/pb33f/harific/tui"
 )
 
 const pb33fASCII = `@@@@@@@   @@@@@@@   @@@@@@   @@@@@@   @@@@@@@@

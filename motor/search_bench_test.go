@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/pb33f/braid/hargen"
+	"github.com/pb33f/harific/hargen"
 	"github.com/stretchr/testify/require"
 )
 

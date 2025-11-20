@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/v2/table"
-	"github.com/pb33f/braid/motor"
+	"github.com/pb33f/harific/motor"
 )
 
 // EntryFilter defines a filter that can show/hide entries

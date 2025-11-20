@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pb33f/braid/hargen"
+	"github.com/pb33f/harific/hargen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

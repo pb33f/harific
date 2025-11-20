@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pb33f/braid/hargen"
+	"github.com/pb33f/harific/hargen"
 	"github.com/spf13/cobra"
 )
 

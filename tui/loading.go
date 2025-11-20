@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/bubbles/v2/spinner"
 	"github.com/charmbracelet/lipgloss/v2"
-	"github.com/pb33f/braid/motor"
+	"github.com/pb33f/harific/motor"
 )
 
 type LoadState int

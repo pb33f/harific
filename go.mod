@@ -1,4 +1,4 @@
-module github.com/pb33f/braid
+module github.com/pb33f/harific
 
 go 1.25.0
 

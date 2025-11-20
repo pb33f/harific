@@ -6,7 +6,7 @@ import (
     "log/slog"
     "os"
 
-    "github.com/pb33f/braid/motor"
+    "github.com/pb33f/harific/motor"
     "github.com/spf13/cobra"
 )
 

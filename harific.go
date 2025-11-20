@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/pb33f/braid/cmd"
+	"github.com/pb33f/harific/cmd"
 )
 
 func main() {

@@ -8,7 +8,7 @@ import (
 )
 
 // These variables are typically set during build time using ldflags
-// Example: go build -ldflags "-X github.com/pb33f/braid/cmd.Version=1.0.0"
+// Example: go build -ldflags "-X github.com/pb33f/harific/cmd.Version=1.0.0"
 var (
 	Version   = "dev"       // Version of the application
 	GitCommit = "unknown"   // Git commit hash
