@@ -2,6 +2,9 @@
 
 ![logo](harific-logo.png)
 
+![logo](harific-demo.gif)
+
+
 ## Quick Start
 
 ### Installation
