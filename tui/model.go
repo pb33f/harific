@@ -112,6 +112,13 @@ type HARViewModel struct {
     cachedColorizedTable string
     cachedTableCursor    int
 
+    // viewport search states (for split view)
+    requestSearchState  *ViewportSearchState
+    responseSearchState *ViewportSearchState
+
+    // detail modal search state
+    detailSearchState *ViewportSearchState
+
     fileName string
 
     loadState       LoadState
@@ -161,11 +168,14 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
         searchFilter:     NewSearchFilter(),
         filterChain:      NewFilterChain(),
         searchSpinner:    searchSpinner,
-        activeModal:      ModalNone,
-        fileTypeFilter:   NewFileTypeFilter(),
-        filterCheckboxes: [6]bool{true, true, true, true, true, true}, // all enabled by default
-        progressBar:      progressBar,
-        progressChan:     make(chan motor.IndexProgress, 10),
+        activeModal:         ModalNone,
+        fileTypeFilter:      NewFileTypeFilter(),
+        filterCheckboxes:    [6]bool{true, true, true, true, true, true}, // all enabled by default
+        progressBar:         progressBar,
+        progressChan:        make(chan motor.IndexProgress, 10),
+        requestSearchState:  NewViewportSearchState(),
+        responseSearchState: NewViewportSearchState(),
+        detailSearchState:   NewViewportSearchState(),
     }
 
     return m, nil
@@ -388,11 +398,14 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     case tea.KeyPressMsg:
         key := msg.String()
 
-        // modal keys have priority (check detail modal first, then filter modal)
+        // modal keys have priority (check detail modal first, then filter modal, then viewport search)
         if handled, cmd := m.handleDetailModalKeys(key); handled {
             return m, cmd
         }
         if handled, cmd := m.handleFilterModalKeys(key); handled {
+            return m, cmd
+        }
+        if handled, cmd := m.handleViewportSearchKeys(key); handled {
             return m, cmd
         }
 
@@ -409,9 +422,17 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             }
             // don't return - let Q fall through to input handling in search mode
 
-        case "s":
+        case "s", "ctrl+f", "/":
             if m.loadState == LoadStateLoaded {
-                if m.viewMode == ViewModeTable || m.viewMode == ViewModeTableFiltered {
+                // Check if we're in viewport mode and want to activate viewport search
+                if m.viewMode == ViewModeTableWithSplit && (key == "ctrl+f" || key == "/") {
+                    cmd := m.activateViewportSearch()
+                    // Force viewport content update to show the search panel
+                    m.updateViewportContent()
+                    return m, cmd
+                }
+                // Otherwise activate global search (not for "/" in split mode)
+                if (m.viewMode == ViewModeTable || m.viewMode == ViewModeTableFiltered) && key != "/" {
                     cmd := m.toggleSearchView()
                     return m, cmd
                 }
@@ -443,10 +464,12 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         m.activeModal = ModalRequestFull
                         m.detailViewType = "request"
                         m.detailViewport.GotoTop() // reset scroll when opening
+                        m.detailSearchState.Clear() // clear any previous search
                     } else {
                         m.activeModal = ModalResponseFull
                         m.detailViewType = "response"
                         m.detailViewport.GotoTop() // reset scroll when opening
+                        m.detailSearchState.Clear() // clear any previous search
                     }
                 }
             }
@@ -558,6 +581,24 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         }
     }
 
+    // Handle detail modal search input
+    if m.activeModal == ModalRequestFull || m.activeModal == ModalResponseFull {
+        if m.detailSearchState.active && m.detailSearchState.cursor == 0 {
+            switch msg.(type) {
+            case tea.KeyPressMsg:
+                oldValue := m.detailSearchState.searchInput.Value()
+                m.detailSearchState.searchInput, cmd = m.detailSearchState.searchInput.Update(msg)
+                cmds = append(cmds, cmd)
+
+                // Update search if value changed
+                if m.detailSearchState.searchInput.Value() != oldValue {
+                    m.detailSearchState.UpdateQuery(m.detailSearchState.searchInput.Value())
+                    m.updateDetailContent()
+                }
+            }
+        }
+    }
+
     if m.loadState == LoadStateLoaded {
         switch m.viewMode {
         case ViewModeTableWithSearch:
@@ -598,13 +639,55 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             }
 
         case ViewModeTableWithSplit:
-            // only update the focused viewport
+            // Check if viewport search is active
+            var searchState *ViewportSearchState
             if m.focusedViewport == ViewportFocusRequest {
-                m.requestViewport, cmd = m.requestViewport.Update(msg)
-                cmds = append(cmds, cmd)
+                searchState = m.requestSearchState
             } else {
-                m.responseViewport, cmd = m.responseViewport.Update(msg)
-                cmds = append(cmds, cmd)
+                searchState = m.responseSearchState
+            }
+
+            // Handle messages based on type
+            switch msg := msg.(type) {
+            case tea.KeyPressMsg:
+                key := msg.String()
+
+                // If search is active and cursor is on input, update the search input
+                if searchState.active && searchState.cursor == 0 {
+                    oldValue := searchState.searchInput.Value()
+                    searchState.searchInput, cmd = searchState.searchInput.Update(msg)
+                    cmds = append(cmds, cmd)
+
+                    // Update search if value changed
+                    if searchState.searchInput.Value() != oldValue {
+                        searchState.UpdateQuery(searchState.searchInput.Value())
+                        m.updateViewportContent()
+                    }
+                } else if !searchState.active {
+                    // Only pass scrolling keys to viewport when search is not active
+                    // Don't pass ctrl+f, /, tab, esc, enter, etc.
+                    switch key {
+                    case "up", "down", "pgup", "pgdown", "home", "end":
+                        // Pass scrolling keys to viewport
+                        if m.focusedViewport == ViewportFocusRequest {
+                            m.requestViewport, cmd = m.requestViewport.Update(msg)
+                            cmds = append(cmds, cmd)
+                        } else {
+                            m.responseViewport, cmd = m.responseViewport.Update(msg)
+                            cmds = append(cmds, cmd)
+                        }
+                    }
+                    // Other keys are handled by our key handler above
+                }
+            default:
+                // Pass non-keyboard messages to viewport (mouse events, etc.)
+                if m.focusedViewport == ViewportFocusRequest {
+                    m.requestViewport, cmd = m.requestViewport.Update(msg)
+                    cmds = append(cmds, cmd)
+                } else {
+                    m.responseViewport, cmd = m.responseViewport.Update(msg)
+                    cmds = append(cmds, cmd)
+                }
             }
         }
     }
@@ -795,6 +878,101 @@ func (m *HARViewModel) toggleViewportFocus() {
     } else {
         m.focusedViewport = ViewportFocusRequest
     }
+}
+
+// activateViewportSearch activates the search UI for the currently focused viewport
+func (m *HARViewModel) activateViewportSearch() tea.Cmd {
+    if m.viewMode != ViewModeTableWithSplit {
+        return nil
+    }
+
+    // Get the appropriate search state
+    var searchState *ViewportSearchState
+    if m.focusedViewport == ViewportFocusRequest {
+        searchState = m.requestSearchState
+    } else {
+        searchState = m.responseSearchState
+    }
+
+    searchState.Activate()
+    return searchState.searchInput.Focus()
+}
+
+// handleViewportSearchKeys handles keyboard input when viewport search is active
+func (m *HARViewModel) handleViewportSearchKeys(key string) (bool, tea.Cmd) {
+    if m.viewMode != ViewModeTableWithSplit {
+        return false, nil
+    }
+
+    // Get the appropriate search state
+    var searchState *ViewportSearchState
+    if m.focusedViewport == ViewportFocusRequest {
+        searchState = m.requestSearchState
+    } else {
+        searchState = m.responseSearchState
+    }
+
+    if !searchState.active {
+        return false, nil
+    }
+
+    switch key {
+    case "esc":
+        // Check if we're in filtered view
+        if searchState.filtered {
+            // First Esc: exit filtered view
+            searchState.ToggleFiltered()
+            m.updateViewportContent()
+        } else {
+            // Second Esc: close search
+            searchState.Deactivate()
+        }
+        return true, nil
+
+    case "enter", "return", " ", "space":
+        if searchState.cursor == 0 {
+            // On input field - toggle filtered view if we have matches
+            if len(searchState.matches) > 0 {
+                searchState.ToggleFiltered()
+                m.updateViewportContent()
+            }
+        } else {
+            // On checkbox - toggle key search mode
+            searchState.ToggleKeySearchOnly()
+            m.updateViewportContent()
+        }
+        return true, nil
+
+    case "tab":
+        // Switch between input and checkbox
+        searchState.MoveCursor(1)
+        if searchState.cursor == 0 {
+            return true, searchState.searchInput.Focus()
+        } else {
+            searchState.searchInput.Blur()
+            return true, nil
+        }
+
+    case "up":
+        searchState.MoveCursor(-1)
+        if searchState.cursor == 0 {
+            return true, searchState.searchInput.Focus()
+        } else {
+            searchState.searchInput.Blur()
+            return true, nil
+        }
+
+    case "down":
+        searchState.MoveCursor(1)
+        if searchState.cursor == 0 {
+            return true, searchState.searchInput.Focus()
+        } else {
+            searchState.searchInput.Blur()
+            return true, nil
+        }
+    }
+
+    return false, nil
 }
 
 func (m *HARViewModel) calculateModalPosition() (int, int) {

@@ -138,8 +138,10 @@ func (m *HARViewModel) renderStatusBar() string {
         parts = append(parts, "s: Search")
         parts = append(parts, "Esc: Clear Filters")
     } else {
+        // ViewModeTableWithSplit
         parts = append(parts, "↑/↓: Scroll")
         parts = append(parts, "Tab: Switch Panel")
+        parts = append(parts, "/: Search JSON")
         parts = append(parts, "Esc: Close Details")
     }
 
@@ -229,6 +231,7 @@ func (m *HARViewModel) renderSplitPanel() string {
 
     return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
+
 
 // renderSearchPanel creates the search input panel with pink border styling.
 // The panel takes 30% of the vertical space at the bottom of the screen.
@@ -325,7 +328,8 @@ func (m *HARViewModel) formatRequest() string {
         Truncate: true,
     }
 
-    return renderSections(sections, opts)
+    // Use search-aware rendering if available
+    return renderSectionsWithSearch(sections, opts, m.requestSearchState)
 }
 
 func (m *HARViewModel) formatResponse() string {
@@ -340,7 +344,8 @@ func (m *HARViewModel) formatResponse() string {
         Truncate: true,
     }
 
-    return renderSections(sections, opts)
+    // Use search-aware rendering if available
+    return renderSectionsWithSearch(sections, opts, m.responseSearchState)
 }
 
 func (m *HARViewModel) renderError() string {
