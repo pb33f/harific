@@ -10,14 +10,16 @@ import (
 
 // ViewportSearchState tracks search state for a single viewport
 type ViewportSearchState struct {
-	active        bool
-	query         string
-	keySearchOnly bool
-	matches       []JSONMatch
-	filtered      bool
-	searchInput   textinput.Model
-	cursor        int  // 0 = input field, 1 = checkbox
-	renderer      *JSONRenderer
+	active         bool
+	query          string
+	keySearchOnly  bool
+	matches        []JSONMatch
+	filtered       bool
+	searchInput    textinput.Model
+	cursor         int  // 0 = input field, 1 = checkbox
+	renderer       *JSONRenderer
+	contentSet     bool // Track if content has been set
+	locked         bool // When true, search won't update on keystrokes
 }
 
 // NewViewportSearchState creates a new viewport search state
@@ -50,7 +52,21 @@ func (s *ViewportSearchState) Activate() {
 func (s *ViewportSearchState) Deactivate() {
 	s.active = false
 	s.searchInput.Blur()
-	// Keep search results visible even when deactivated
+	s.contentSet = false  // Reset so content can be set again next time
+	s.locked = false      // Unlock when deactivating
+	s.filtered = false   // Exit filtered mode
+
+	// Clear the search query and results for fresh start
+	s.query = ""
+	s.matches = []JSONMatch{}
+	s.searchInput.SetValue("")
+
+	// Reset the renderer to show unfiltered, unsearched content
+	if s.renderer != nil {
+		s.renderer.hasSearched = false
+		s.renderer.filtered = false
+		s.renderer.searchEngine.matches = []JSONMatch{}
+	}
 }
 
 // Clear clears the search state
@@ -60,10 +76,16 @@ func (s *ViewportSearchState) Clear() {
 	s.filtered = false
 	s.searchInput.SetValue("")
 	s.renderer = nil
+	s.contentSet = false
 }
 
 // SetContent updates the content being searched
 func (s *ViewportSearchState) SetContent(jsonContent string, width int) error {
+	// Only set content once to avoid re-searching on every render
+	if s.contentSet {
+		return nil
+	}
+
 	if !isValidJSON(jsonContent) {
 		// Not JSON content, disable search
 		s.renderer = nil
@@ -79,12 +101,11 @@ func (s *ViewportSearchState) SetContent(jsonContent string, width int) error {
 			return err
 		}
 		s.renderer = renderer
+		s.contentSet = true
 	}
 
-	// Re-apply current search if any
-	if s.query != "" {
-		s.performSearch()
-	}
+	// Don't automatically perform search - wait for debounce
+	// The search will be triggered by UpdateQuery after debounce
 
 	// Sync filtered state with renderer
 	if s.renderer != nil {
@@ -114,6 +135,7 @@ func (s *ViewportSearchState) ToggleFiltered() {
 	}
 
 	s.filtered = !s.filtered
+	s.locked = s.filtered  // Lock search when entering filtered mode
 	s.renderer.ToggleFiltered()
 }
 
@@ -148,13 +170,19 @@ func (s *ViewportSearchState) MoveCursor(direction int) {
 	}
 }
 
-// UpdateQuery updates the search query
+// UpdateQuery updates the search query and performs the search
 func (s *ViewportSearchState) UpdateQuery(query string) {
 	s.query = query
 	s.searchInput.SetValue(query)
 	if s.renderer != nil {
 		s.performSearch()
 	}
+}
+
+// SetQueryWithoutSearch just updates the query without searching
+func (s *ViewportSearchState) SetQueryWithoutSearch(query string) {
+	s.query = query
+	s.searchInput.SetValue(query)
 }
 
 // RenderSearchPanel renders the search panel for the viewport

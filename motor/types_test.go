@@ -53,9 +53,7 @@ func TestIndex_InternConcurrent(t *testing.T) {
 func TestDefaultStreamerOptions(t *testing.T) {
 	opts := DefaultStreamerOptions()
 
-	if opts.EnableCache {
-		t.Error("expected cache disabled by default")
-	}
+	// EnableCache removed - reserved for future implementation
 
 	if opts.WorkerCount != 4 {
 		t.Errorf("expected 4 workers, got %d", opts.WorkerCount)

@@ -46,6 +46,17 @@ func (s *DefaultHARStreamer) Initialize(ctx context.Context) error {
 }
 
 func (s *DefaultHARStreamer) InitializeWithProgress(ctx context.Context, progressChan chan<- IndexProgress) error {
+	// Take ownership of channel lifecycle - ensure it's always closed
+	// Note: BuildWithProgress will ALWAYS close the channel (even on error) if we pass it
+	channelNeedsClosing := progressChan != nil
+
+	defer func() {
+		// Only close if we haven't called BuildWithProgress yet
+		if channelNeedsClosing && progressChan != nil {
+			close(progressChan)
+		}
+	}()
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -66,6 +77,8 @@ func (s *DefaultHARStreamer) InitializeWithProgress(ctx context.Context, progres
 	fileSize := fileInfo.Size()
 
 	builder := NewIndexBuilder(s.filePath)
+	// BuildWithProgress will ALWAYS close the channel (via defer), even on error
+	channelNeedsClosing = false // BuildWithProgress takes ownership
 	index, err := builder.BuildWithProgress(file, fileSize, progressChan)
 	if err != nil {
 		return fmt.Errorf("failed to build index: %w", err)
@@ -81,6 +94,7 @@ func (s *DefaultHARStreamer) InitializeWithProgress(ctx context.Context, progres
 
 	reader, err := NewEntryReader(s.filePath, s.index)
 	if err != nil {
+		// Note: channel was already closed by BuildWithProgress
 		return fmt.Errorf("failed to create reader: %w", err)
 	}
 
@@ -179,10 +193,14 @@ func (s *DefaultHARStreamer) streamRange(ctx context.Context, start, end int) <-
 						return
 					default:
 						entry, err := s.GetEntry(ctx, idx)
-						resultChan <- StreamResult{
+						select {
+						case <-ctx.Done():
+							return
+						case resultChan <- StreamResult{
 							Index: idx,
 							Entry: entry,
 							Error: err,
+						}:
 						}
 					}
 				}
@@ -227,10 +245,14 @@ func (s *DefaultHARStreamer) streamIndices(ctx context.Context, indices []int) <
 						return
 					default:
 						entry, err := s.GetEntry(ctx, idx)
-						resultChan <- StreamResult{
+						select {
+						case <-ctx.Done():
+							return
+						case resultChan <- StreamResult{
 							Index: idx,
 							Entry: entry,
 							Error: err,
+						}:
 						}
 					}
 				}

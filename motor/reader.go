@@ -13,6 +13,13 @@ import (
 	"github.com/pb33f/harhar"
 )
 
+const (
+	// MaxEntrySize is the maximum size of a single HAR entry that can be read.
+	// This prevents OOM attacks from malicious or corrupted HAR files.
+	// 100MB should be sufficient for even very large responses.
+	MaxEntrySize = 100 * 1024 * 1024 // 100MB
+)
+
 type DefaultEntryReader struct {
 	filePath    string
 	filePool    *sync.Pool               // pool of file handles for concurrent access
@@ -89,6 +96,12 @@ func (r *DefaultEntryReader) Read(ctx context.Context, req ReadRequest) ReadResp
 	default:
 	}
 
+	// Validate entry size to prevent OOM attacks
+	if req.GetLength() > MaxEntrySize {
+		resp.err = fmt.Errorf("entry size %d exceeds maximum allowed size %d", req.GetLength(), MaxEntrySize)
+		return resp
+	}
+
 	// each worker gets isolated file handle from pool (no mutex contention)
 	pooledHandle := r.filePool.Get()
 	if pooledHandle == nil {
@@ -116,6 +129,11 @@ func (r *DefaultEntryReader) Read(ctx context.Context, req ReadRequest) ReadResp
 	if buf := req.GetBuffer(); buf != nil {
 		// search path: use pooled buffer for maximum efficiency
 		if req.GetLength() > int64(cap(*buf)) {
+			// Double-check size limit before allocation (defense in depth)
+			if req.GetLength() > MaxEntrySize {
+				resp.err = fmt.Errorf("cannot allocate buffer: entry size %d exceeds maximum %d", req.GetLength(), MaxEntrySize)
+				return resp
+			}
 			*buf = make([]byte, req.GetLength())
 		}
 
