@@ -46,6 +46,11 @@ func (s *DefaultHARStreamer) Initialize(ctx context.Context) error {
 }
 
 func (s *DefaultHARStreamer) InitializeWithProgress(ctx context.Context, progressChan chan<- IndexProgress) error {
+	// Prevent re-initialization to avoid leaking old reader resources
+	if s.index != nil || s.reader != nil {
+		return fmt.Errorf("streamer already initialized: create a new streamer instance instead")
+	}
+
 	// Take ownership of channel lifecycle - ensure it's always closed
 	// Note: BuildWithProgress will ALWAYS close the channel (even on error) if we pass it
 	channelNeedsClosing := progressChan != nil
@@ -104,6 +109,10 @@ func (s *DefaultHARStreamer) InitializeWithProgress(ctx context.Context, progres
 }
 
 func (s *DefaultHARStreamer) GetEntry(ctx context.Context, index int) (*model.Entry, error) {
+	if s.index == nil || s.reader == nil {
+		return nil, fmt.Errorf("streamer not initialized: call Initialize() first")
+	}
+
 	if index < 0 || index >= s.index.TotalEntries {
 		return nil, fmt.Errorf("index %d out of range [0, %d)", index, s.index.TotalEntries)
 	}
@@ -150,6 +159,10 @@ func (s *DefaultHARStreamer) GetEntry(ctx context.Context, index int) (*model.En
 }
 
 func (s *DefaultHARStreamer) StreamRange(ctx context.Context, start, end int) (<-chan StreamResult, error) {
+	if s.index == nil || s.reader == nil {
+		return nil, fmt.Errorf("streamer not initialized: call Initialize() first")
+	}
+
 	if start < 0 || start >= s.index.TotalEntries {
 		return nil, fmt.Errorf("start index %d out of range", start)
 	}
@@ -161,6 +174,10 @@ func (s *DefaultHARStreamer) StreamRange(ctx context.Context, start, end int) (<
 }
 
 func (s *DefaultHARStreamer) StreamFiltered(ctx context.Context, filter func(*EntryMetadata) bool) (<-chan StreamResult, error) {
+	if s.index == nil || s.reader == nil {
+		return nil, fmt.Errorf("streamer not initialized: call Initialize() first")
+	}
+
 	var matchingIndices []int
 	for i, metadata := range s.index.Entries {
 		if filter(metadata) {
@@ -276,6 +293,10 @@ func (s *DefaultHARStreamer) streamIndices(ctx context.Context, indices []int) <
 }
 
 func (s *DefaultHARStreamer) GetMetadata(index int) (*EntryMetadata, error) {
+	if s.index == nil {
+		return nil, fmt.Errorf("streamer not initialized: call Initialize() first")
+	}
+
 	if index < 0 || index >= s.index.TotalEntries {
 		return nil, fmt.Errorf("index %d out of range", index)
 	}

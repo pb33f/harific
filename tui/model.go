@@ -130,6 +130,8 @@ type HARViewModel struct {
     progressChan    chan motor.IndexProgress
     indexingPercent float64
     indexingEntries int
+    indexingCtx     context.Context
+    indexingCancel  context.CancelFunc
 
     err error
 }
@@ -431,12 +433,20 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
         switch key {
         case "ctrl+c":
+            // Cancel indexing if still running
+            if m.indexingCancel != nil {
+                m.indexingCancel()
+            }
             m.quitting = true
             return m, tea.Quit
 
         case "q":
             // only quit from table view, not from search or split views
             if m.loadState == LoadStateLoaded && m.viewMode == ViewModeTable {
+                // Cancel indexing if still running
+                if m.indexingCancel != nil {
+                    m.indexingCancel()
+                }
                 m.quitting = true
                 return m, tea.Quit
             }

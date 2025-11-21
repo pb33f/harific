@@ -85,6 +85,12 @@ func (s *HARSearcher) Search(ctx context.Context, pattern string, opts SearchOpt
 		return nil, fmt.Errorf("invalid pattern: %w", err)
 	}
 
+	// Reset statistics for this search to avoid cumulative stats across searches
+	atomic.StoreInt64(&s.stats.entriesSearched, 0)
+	atomic.StoreInt64(&s.stats.matchesFound, 0)
+	atomic.StoreInt64(&s.stats.bytesSearched, 0)
+	atomic.StoreInt64(&s.stats.searchDuration, 0)
+
 	// get total entries
 	index := s.streamer.GetIndex()
 	totalEntries := index.TotalEntries

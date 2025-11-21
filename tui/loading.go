@@ -51,16 +51,25 @@ func (m *HARViewModel) listenForProgress() tea.Cmd {
 }
 
 func (m *HARViewModel) startIndexing() tea.Cmd {
+	// Create cancellable context for indexing lifecycle
+	ctx, cancel := context.WithCancel(context.Background())
+	m.indexingCtx = ctx
+	m.indexingCancel = cancel
+
 	indexCmd := func() tea.Msg {
 		start := time.Now()
 
 		streamer, err := motor.NewHARStreamer(m.fileName, motor.DefaultStreamerOptions())
 		if err != nil {
+			// Close progress channel to prevent listener goroutine leak
+			close(m.progressChan)
 			return indexErrorMsg{err: err}
 		}
 
-		// motor closes the channel when done
-		if err := streamer.InitializeWithProgress(context.Background(), m.progressChan); err != nil {
+		// Use the model's indexing context so user can cancel
+		if err := streamer.InitializeWithProgress(m.indexingCtx, m.progressChan); err != nil {
+			// Close streamer to release file handles on error
+			streamer.Close()
 			return indexErrorMsg{err: err}
 		}
 
