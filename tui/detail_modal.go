@@ -3,12 +3,116 @@ package tui
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
 )
+
+// updateDetailContent updates the detail modal viewport content (e.g., after search changes)
+func (m *HARViewModel) updateDetailContent() {
+	modalWidth := int(float64(m.width) * 0.9)
+
+	var content string
+	if m.activeModal == ModalRequestFull {
+		content = m.formatRequestFullWithSearch(modalWidth - 4)
+	} else {
+		content = m.formatResponseFullWithSearch(modalWidth - 4)
+	}
+
+	m.detailViewport.SetContent(content)
+}
+
+// formatRequestFullWithSearch formats request with search applied
+func (m *HARViewModel) formatRequestFullWithSearch(width int) string {
+	if m.selectedEntry == nil {
+		return "No request data"
+	}
+
+	sections := buildRequestSections(&m.selectedEntry.Request)
+
+	opts := RenderOptions{
+		Width:    width,
+		Truncate: false,
+	}
+
+	// Use search-aware rendering if search is active
+	if m.detailSearchState.active {
+		// Don't apply syntax highlighting - let search renderer handle the JSON
+		return renderSectionsWithSearch(sections, opts, m.detailSearchState)
+	}
+
+	// Apply syntax highlighting only when not searching
+	sections = m.highlightBodyInSections(sections, m.selectedEntry.Request.Body.MIMEType)
+	return renderSections(sections, opts)
+}
+
+// formatResponseFullWithSearch formats response with search applied
+func (m *HARViewModel) formatResponseFullWithSearch(width int) string {
+	if m.selectedEntry == nil {
+		return "No response data"
+	}
+
+	sections := buildResponseSections(&m.selectedEntry.Response, &m.selectedEntry.Timings)
+
+	opts := RenderOptions{
+		Width:    width,
+		Truncate: false,
+	}
+
+	// Use search-aware rendering if search is active
+	if m.detailSearchState.active {
+		// Don't apply syntax highlighting - let search renderer handle the JSON
+		return renderSectionsWithSearch(sections, opts, m.detailSearchState)
+	}
+
+	// Apply syntax highlighting only when not searching
+	sections = m.highlightBodyInSections(sections, m.selectedEntry.Response.Body.MIMEType)
+	return renderSections(sections, opts)
+}
+
+// renderDetailSearchBar renders the search controls in the detail modal footer
+func (m *HARViewModel) renderDetailSearchBar() string {
+	searchState := m.detailSearchState
+	var parts []string
+
+	// Search input
+	searchStyle := lipgloss.NewStyle().Foreground(RGBPink).Bold(true)
+	parts = append(parts, searchStyle.Render("Search: ") + searchState.searchInput.View())
+
+	// Key search checkbox
+	checkbox := "[ ]"
+	if searchState.keySearchOnly {
+		checkbox = "[x]"
+	}
+	parts = append(parts, checkbox + " Keys Only")
+
+	// Match count
+	if searchState.query != "" && searchState.renderer != nil {
+		matchCount := searchState.renderer.GetMatchCount()
+		if matchCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d matches", matchCount))
+		} else {
+			parts = append(parts, "no matches")
+		}
+	}
+
+	// Help
+	helpParts := []string{"Tab: Toggle checkbox"}
+	if searchState.filtered {
+		helpParts = append(helpParts, "Enter: Show all")
+	} else if len(searchState.matches) > 0 {
+		helpParts = append(helpParts, "Enter: Filter")
+	}
+	helpParts = append(helpParts, "Esc: Exit search")
+
+	helpStyle := lipgloss.NewStyle().Faint(true)
+	parts = append(parts, helpStyle.Render(strings.Join(helpParts, " | ")))
+
+	return strings.Join(parts, " | ")
+}
 
 // renderDetailModal renders the full request or response in a 90x90 modal
 func (m *HARViewModel) renderDetailModal() string {
@@ -29,10 +133,12 @@ func (m *HARViewModel) renderDetailModal() string {
 
 	if m.activeModal == ModalRequestFull {
 		title = "Request (Full View)"
-		content = m.formatRequestFull(modalWidth - 4)
+		// Always use search-aware version - it handles both cases
+		content = m.formatRequestFullWithSearch(modalWidth - 4)
 	} else {
 		title = "Response (Full View)"
-		content = m.formatResponseFull(modalWidth - 4)
+		// Always use search-aware version - it handles both cases
+		content = m.formatResponseFullWithSearch(modalWidth - 4)
 	}
 
 	m.detailViewport.SetContent(content)
@@ -61,7 +167,13 @@ func (m *HARViewModel) renderDetailModal() string {
 	modal.WriteString("\n")
 	modal.WriteString(m.detailViewport.View())
 	modal.WriteString("\n")
-	modal.WriteString(helpStyle.Render("↑/↓: Scroll | PgUp/PgDn: Page | Esc: Close"))
+
+	// Show search controls if search is active, otherwise show normal help
+	if m.detailSearchState.active {
+		modal.WriteString(m.renderDetailSearchBar())
+	} else {
+		modal.WriteString(helpStyle.Render("↑/↓: Scroll | PgUp/PgDn: Page | Ctrl+F: Search | Esc: Close"))
+	}
 
 	return modalStyle.Render(modal.String())
 }
@@ -189,16 +301,75 @@ func (m *HARViewModel) handleDetailModalKeys(key string) (bool, tea.Cmd) {
 		return false, nil
 	}
 
+	// If search is active, handle search-specific keys
+	if m.detailSearchState.active {
+		switch key {
+		case "esc":
+			// Exit search
+			m.detailSearchState.Deactivate()
+			return true, nil
+
+		case "tab":
+			// Toggle between search input and checkbox
+			m.detailSearchState.MoveCursor(1)
+			if m.detailSearchState.cursor == 0 {
+				return true, m.detailSearchState.searchInput.Focus()
+			} else {
+				m.detailSearchState.searchInput.Blur()
+				return true, nil
+			}
+
+		case "enter", "return", " ", "space":
+			if m.detailSearchState.cursor == 0 {
+				// On input field - toggle filtered view if we have matches
+				if len(m.detailSearchState.matches) > 0 {
+					m.detailSearchState.ToggleFiltered()
+					m.updateDetailContent()
+				}
+			} else {
+				// On checkbox - toggle key search mode
+				m.detailSearchState.ToggleKeySearchOnly()
+				m.updateDetailContent()
+			}
+			return true, nil
+		}
+
+		// Let other keys fall through for search input handling
+	}
+
+	// Normal modal keys
 	switch key {
+	case "ctrl+f", "/":
+		// Activate search and initialize with JSON content if available
+		m.detailSearchState.Activate()
+
+		// Get the JSON body content to search
+		var jsonContent string
+		if m.activeModal == ModalRequestFull && m.selectedEntry != nil {
+			jsonContent = m.selectedEntry.Request.Body.Content
+		} else if m.activeModal == ModalResponseFull && m.selectedEntry != nil {
+			jsonContent = m.selectedEntry.Response.Body.Content
+		}
+
+		// Initialize the search state with the JSON content
+		if jsonContent != "" && isValidJSON(jsonContent) {
+			modalWidth := int(float64(m.width) * 0.9)
+			m.detailSearchState.SetContent(jsonContent, modalWidth-4)
+		}
+
+		m.updateDetailContent()
+		return true, m.detailSearchState.searchInput.Focus()
+
 	case "esc":
 		m.activeModal = ModalNone
+		m.detailSearchState.Deactivate() // Also deactivate search when closing
 		return true, nil
 
-	case "up", "k":
+	case "up":
 		m.detailViewport.LineUp(1)
 		return true, nil
 
-	case "down", "j":
+	case "down":
 		m.detailViewport.LineDown(1)
 		return true, nil
 

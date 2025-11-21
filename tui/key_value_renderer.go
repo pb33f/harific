@@ -229,3 +229,42 @@ func cookiesToPairs(cookies []harhar.Cookie) []KeyValuePair {
 	}
 	return pairs
 }
+
+// renderSectionsWithSearch renders sections with JSON search support
+func renderSectionsWithSearch(sections []Section, opts RenderOptions, searchState *ViewportSearchState) string {
+	if len(sections) == 0 {
+		return ""
+	}
+
+	// Only process if search state is provided and active
+	if searchState == nil || !searchState.active {
+		return renderSections(sections, opts)
+	}
+
+	// Check if we have a body section with JSON content
+	for i, section := range sections {
+		if section.Title == "Body" {
+			for j, pair := range section.Pairs {
+				if pair.Key == "Content" {
+					// Check if content is JSON
+					if !isValidJSON(pair.Value) {
+						continue
+					}
+
+					// Initialize the search renderer if not already done
+					if !searchState.HasJSONContent() {
+						searchState.SetContent(pair.Value, opts.Width)
+					}
+
+					// If we have a renderer, use it to render the content
+					if searchState.HasJSONContent() {
+						sections[i].Pairs[j].Value = searchState.GetRenderedContent()
+					}
+				}
+			}
+		}
+	}
+
+	// Render normally
+	return renderSections(sections, opts)
+}
