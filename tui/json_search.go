@@ -22,8 +22,7 @@ type JSONSearchEngine struct {
 	content    string
 	parsed     interface{}
 	matches    []JSONMatch
-	pathIndex  map[string]interface{} // Maps paths to values
-	keyPaths   []string               // All key paths in the JSON
+	pathIndex  map[string]interface{} // Maps paths to values for O(1) lookup
 	searchMode SearchMode
 }
 
@@ -40,7 +39,6 @@ func NewJSONSearchEngine(jsonContent string) (*JSONSearchEngine, error) {
 	engine := &JSONSearchEngine{
 		content:   jsonContent,
 		pathIndex: make(map[string]interface{}),
-		keyPaths:  []string{},
 		matches:   []JSONMatch{},
 	}
 
@@ -65,7 +63,6 @@ func (e *JSONSearchEngine) buildPathIndex(data interface{}, parentPath string) {
 				path = parentPath + "." + key
 			}
 			e.pathIndex[path] = value
-			e.keyPaths = append(e.keyPaths, path)
 			e.buildPathIndex(value, path)
 		}
 
@@ -80,6 +77,8 @@ func (e *JSONSearchEngine) buildPathIndex(data interface{}, parentPath string) {
 
 // Search finds all matches for the given query
 func (e *JSONSearchEngine) Search(query string, keysOnly bool) []JSONMatch {
+	// Trim whitespace and check if empty
+	query = strings.TrimSpace(query)
 	if query == "" {
 		return []JSONMatch{}
 	}

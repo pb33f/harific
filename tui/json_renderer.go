@@ -1,9 +1,9 @@
 package tui
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss/v2"
@@ -11,10 +11,11 @@ import (
 
 // JSONRenderer handles rendering JSON with search highlighting and filtering
 type JSONRenderer struct {
-	searchEngine *JSONSearchEngine
-	filtered     bool
-	indent       string
-	width        int
+	searchEngine   *JSONSearchEngine
+	filtered       bool
+	indent         string
+	width          int
+	hasSearched    bool   // Track if search has been performed
 }
 
 // NewJSONRenderer creates a new JSON renderer
@@ -35,6 +36,7 @@ func NewJSONRenderer(jsonContent string, width int) (*JSONRenderer, error) {
 // SetSearch updates the search query
 func (r *JSONRenderer) SetSearch(query string, keysOnly bool) {
 	r.searchEngine.Search(query, keysOnly)
+	r.hasSearched = true
 }
 
 // ToggleFiltered toggles between filtered and full view
@@ -61,8 +63,12 @@ func (r *JSONRenderer) GetMatchCount() int {
 func (r *JSONRenderer) Render() string {
 	var data interface{}
 
+	if !r.hasSearched {
+		// renderNode always sorts keys deterministically for consistent ordering
+		return r.renderNode(r.searchEngine.parsed, "", 0)
+	}
+
 	if r.filtered && len(r.searchEngine.matches) > 0 {
-		// Use filtered data
 		filtered, err := r.searchEngine.FilterJSON(true)
 		if err != nil || filtered == nil {
 			data = r.searchEngine.parsed
@@ -70,7 +76,6 @@ func (r *JSONRenderer) Render() string {
 			data = filtered
 		}
 	} else {
-		// Use full data
 		data = r.searchEngine.parsed
 	}
 
@@ -87,14 +92,16 @@ func (r *JSONRenderer) renderNode(node interface{}, path string, depth int) stri
 	switch v := node.(type) {
 	case map[string]interface{}:
 		if len(v) == 0 {
-			return "{}"
+			return SyntaxDashStyle.Render("{") + SyntaxDashStyle.Render("}")
 		}
 
-		out.WriteString("{\n")
+		out.WriteString(SyntaxDashStyle.Render("{") + "\n")
 		keys := make([]string, 0, len(v))
 		for k := range v {
 			keys = append(keys, k)
 		}
+		// sort keys for deterministic ordering across renders
+		sort.Strings(keys)
 
 		for i, key := range keys {
 			value := v[key]
@@ -103,11 +110,8 @@ func (r *JSONRenderer) renderNode(node interface{}, path string, depth int) stri
 				keyPath = path + "." + key
 			}
 
-			// Check if this key is matched or is a parent
 			isMatched := r.searchEngine.IsPathMatched(keyPath)
 			isParent := r.searchEngine.IsParentPath(keyPath)
-
-			// Render the key with appropriate styling
 			renderedKey := r.renderKey(key, isMatched, isParent, r.filtered)
 
 			out.WriteString(indent + r.indent)
@@ -124,14 +128,14 @@ func (r *JSONRenderer) renderNode(node interface{}, path string, depth int) stri
 			out.WriteString("\n")
 		}
 
-		out.WriteString(indent + "}")
+		out.WriteString(indent + SyntaxDashStyle.Render("}"))
 
 	case []interface{}:
 		if len(v) == 0 {
-			return "[]"
+			return SyntaxNumberStyle.Render("[") + SyntaxNumberStyle.Render("]")
 		}
 
-		out.WriteString("[\n")
+		out.WriteString(SyntaxNumberStyle.Render("[") + "\n")
 		for i, item := range v {
 			indexPath := fmt.Sprintf("%s[%d]", path, i)
 
@@ -144,10 +148,9 @@ func (r *JSONRenderer) renderNode(node interface{}, path string, depth int) stri
 			}
 			out.WriteString("\n")
 		}
-		out.WriteString(indent + "]")
+		out.WriteString(indent + SyntaxNumberStyle.Render("]"))
 
 	case string:
-		// Check if the value is matched
 		isMatched := r.searchEngine.IsPathMatched(path)
 		return r.renderValue(fmt.Sprintf("%q", v), isMatched)
 
@@ -229,18 +232,25 @@ func (r *JSONRenderer) renderValue(value string, isMatched bool) string {
 
 // RenderJSONWithSearch renders JSON content with search functionality
 func RenderJSONWithSearch(content string, query string, keysOnly bool, filtered bool, width int) string {
-	// Try to pretty print first
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, []byte(content), "", "  "); err != nil {
-		// If pretty print fails, return original
+	// Parse and pretty print the JSON
+	var data interface{}
+	if err := json.Unmarshal([]byte(content), &data); err != nil {
+		// If parsing fails, return original
 		return content
 	}
 
+	// Pretty print with proper indentation
+	prettyBytes, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return content
+	}
+	prettyJSON := string(prettyBytes)
+
 	// Create renderer
-	renderer, err := NewJSONRenderer(prettyJSON.String(), width)
+	renderer, err := NewJSONRenderer(prettyJSON, width)
 	if err != nil {
 		// Fallback to syntax highlighted version without search
-		return applySyntaxHighlightingToContent(prettyJSON.String(), false)
+		return applySyntaxHighlightingToContent(prettyJSON, false)
 	}
 
 	// Set search if provided

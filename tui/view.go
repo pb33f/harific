@@ -328,8 +328,8 @@ func (m *HARViewModel) formatRequest() string {
         Truncate: true,
     }
 
-    // Use search-aware rendering if available
-    return renderSectionsWithSearch(sections, opts, m.requestSearchState)
+    // Render normally without search
+    return renderSections(sections, opts)
 }
 
 func (m *HARViewModel) formatResponse() string {
@@ -344,8 +344,8 @@ func (m *HARViewModel) formatResponse() string {
         Truncate: true,
     }
 
-    // Use search-aware rendering if available
-    return renderSectionsWithSearch(sections, opts, m.responseSearchState)
+    // Render normally without search
+    return renderSections(sections, opts)
 }
 
 func (m *HARViewModel) renderError() string {

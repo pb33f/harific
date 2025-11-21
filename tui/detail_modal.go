@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -15,6 +14,9 @@ import (
 func (m *HARViewModel) updateDetailContent() {
 	modalWidth := int(float64(m.width) * 0.9)
 
+	// Save current scroll position
+	savedYOffset := m.detailViewport.YOffset
+
 	var content string
 	if m.activeModal == ModalRequestFull {
 		content = m.formatRequestFullWithSearch(modalWidth - 4)
@@ -23,6 +25,11 @@ func (m *HARViewModel) updateDetailContent() {
 	}
 
 	m.detailViewport.SetContent(content)
+
+	// Restore scroll position if valid
+	if savedYOffset > 0 && savedYOffset < m.detailViewport.TotalLineCount() {
+		m.detailViewport.SetYOffset(savedYOffset)
+	}
 }
 
 // formatRequestFullWithSearch formats request with search applied
@@ -266,14 +273,19 @@ func prettyPrintJSON(jsonStr string) string {
 		return jsonStr
 	}
 
-	var buf bytes.Buffer
-	err := json.Indent(&buf, []byte(jsonStr), "", "  ")
-	if err != nil {
-		// if indent fails, return original
+	// Parse and re-marshal with indentation
+	var data interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
 		return jsonStr
 	}
 
-	return buf.String()
+	// Marshal with indentation
+	bytes, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return jsonStr
+	}
+
+	return string(bytes)
 }
 
 // applySyntaxHighlightingToContent applies line-by-line syntax highlighting
@@ -307,6 +319,7 @@ func (m *HARViewModel) handleDetailModalKeys(key string) (bool, tea.Cmd) {
 		case "esc":
 			// Exit search
 			m.detailSearchState.Deactivate()
+			m.updateDetailContent() // Update to show cleared search
 			return true, nil
 
 		case "tab":

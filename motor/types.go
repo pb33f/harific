@@ -118,13 +118,15 @@ type StreamerStats struct {
 }
 
 type StreamerOptions struct {
-	EnableCache bool
+	// WorkerCount specifies the number of concurrent workers for streaming operations.
 	WorkerCount int
+	// EnableCache is reserved for future implementation.
+	// TODO: Implement LRU cache for frequently accessed entries to improve performance.
+	// EnableCache bool
 }
 
 func DefaultStreamerOptions() StreamerOptions {
 	return StreamerOptions{
-		EnableCache: false,
 		WorkerCount: 4,
 	}
 }
