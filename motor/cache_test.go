@@ -3,7 +3,7 @@ package motor
 import (
 	"testing"
 
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 func TestNoOpCache(t *testing.T) {
@@ -24,7 +24,7 @@ func TestNoOpCache(t *testing.T) {
 	}
 
 	// test put (should do nothing)
-	testEntry := &harhar.Entry{
+	testEntry := &model.Entry{
 		Start: "2024-01-01T00:00:00Z",
 		Time:  100.0,
 	}
@@ -58,7 +58,7 @@ func TestNoOpCacheMultipleEntries(t *testing.T) {
 
 	// put multiple entries
 	for i := 0; i < 100; i++ {
-		cache.Put(i, &harhar.Entry{
+		cache.Put(i, &model.Entry{
 			Start: "2024-01-01T00:00:00Z",
 			Time:  float64(i),
 		})

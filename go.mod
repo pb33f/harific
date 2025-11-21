@@ -7,7 +7,6 @@ require (
 	github.com/charmbracelet/bubbles/v2 v2.0.0-beta.1
 	github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.4
 	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.3
-	github.com/pb33f/harhar v0.0.0-20250707194835-e48f2c16e9c3
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 )

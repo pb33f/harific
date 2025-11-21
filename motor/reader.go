@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 const (
@@ -161,7 +161,7 @@ func (r *DefaultEntryReader) Read(ctx context.Context, req ReadRequest) ReadResp
 
 	skipReader := &skipLeadingReader{reader: jsonReader}
 	decoder := json.NewDecoder(skipReader)
-	var entry harhar.Entry
+	var entry model.Entry
 	if err := decoder.Decode(&entry); err != nil {
 		resp.err = fmt.Errorf("decode failed: %w", err)
 		return resp
@@ -235,7 +235,7 @@ func (s *skipLeadingReader) Read(p []byte) (n int, err error) {
 }
 
 // deprecated: use Read() instead
-func (r *DefaultEntryReader) ReadAt(offset int64, length int64) (*harhar.Entry, error) {
+func (r *DefaultEntryReader) ReadAt(offset int64, length int64) (*model.Entry, error) {
 	req := NewReadRequestBuilder().
 		WithOffset(offset).
 		WithLength(length).

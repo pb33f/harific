@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/pb33f/harific/hargen"
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -158,7 +158,7 @@ func TestSearchMetadata_NoMatch(t *testing.T) {
 }
 
 func TestSearchHeaders_RequestHeaders(t *testing.T) {
-	headers := []harhar.NameValuePair{
+	headers := []model.NameValuePair{
 		{Name: "Content-Type", Value: "application/json"},
 		{Name: "Authorization", Value: "Bearer token123"},
 		{Name: "X-Custom-Header", Value: "custom-value"},
@@ -189,7 +189,7 @@ func TestSearchHeaders_RequestHeaders(t *testing.T) {
 }
 
 func TestSearchHeaders_NoMatch(t *testing.T) {
-	headers := []harhar.NameValuePair{
+	headers := []model.NameValuePair{
 		{Name: "Content-Type", Value: "application/json"},
 	}
 

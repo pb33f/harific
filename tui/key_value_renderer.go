@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss/v2"
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 // pre-computed styles to avoid allocation in hot path
@@ -104,7 +104,7 @@ func renderKeyValueRow(pair KeyValuePair, keyWidth, valueWidth int, truncate boo
 }
 
 // buildRequestSections converts a HAR request to sections
-func buildRequestSections(req *harhar.Request) []Section {
+func buildRequestSections(req *model.Request) []Section {
 	sections := make([]Section, 1, 5) // pre-allocate for typical case
 	sections[0] = Section{
 		Title: "Request",
@@ -151,7 +151,7 @@ func buildRequestSections(req *harhar.Request) []Section {
 }
 
 // buildResponseSections converts a HAR response to sections
-func buildResponseSections(resp *harhar.Response, timings *harhar.Timings) []Section {
+func buildResponseSections(resp *model.Response, timings *model.Timings) []Section {
 	sections := make([]Section, 1, 4) // pre-allocate for typical case
 	sections[0] = Section{
 		Title: "Response",
@@ -214,7 +214,7 @@ func buildResponseSections(resp *harhar.Response, timings *harhar.Timings) []Sec
 }
 
 // nameValuePairsToPairs converts HAR name-value pairs to KeyValuePairs
-func nameValuePairsToPairs(nvps []harhar.NameValuePair) []KeyValuePair {
+func nameValuePairsToPairs(nvps []model.NameValuePair) []KeyValuePair {
 	pairs := make([]KeyValuePair, len(nvps))
 	for i, nvp := range nvps {
 		pairs[i] = KeyValuePair{nvp.Name, nvp.Value}
@@ -222,7 +222,7 @@ func nameValuePairsToPairs(nvps []harhar.NameValuePair) []KeyValuePair {
 	return pairs
 }
 
-func cookiesToPairs(cookies []harhar.Cookie) []KeyValuePair {
+func cookiesToPairs(cookies []model.Cookie) []KeyValuePair {
 	pairs := make([]KeyValuePair, len(cookies))
 	for i, c := range cookies {
 		pairs[i] = KeyValuePair{c.Name, c.Value}

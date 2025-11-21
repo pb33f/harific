@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 const (
@@ -155,13 +155,13 @@ func (b *DefaultIndexBuilder) parseLog(decoder HARDecoder) error {
 				return err
 			}
 		case keyCreator:
-			var creator harhar.Creator
+			var creator model.Creator
 			if err := decoder.Decode(&creator); err != nil {
 				return err
 			}
 			b.index.Creator = &creator
 		case keyBrowser:
-			var browser harhar.Creator
+			var browser model.Creator
 			if err := decoder.Decode(&browser); err != nil {
 				return err
 			}

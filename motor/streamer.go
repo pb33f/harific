@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 type DefaultHARStreamer struct {
@@ -103,7 +103,7 @@ func (s *DefaultHARStreamer) InitializeWithProgress(ctx context.Context, progres
 	return nil
 }
 
-func (s *DefaultHARStreamer) GetEntry(ctx context.Context, index int) (*harhar.Entry, error) {
+func (s *DefaultHARStreamer) GetEntry(ctx context.Context, index int) (*model.Entry, error) {
 	if index < 0 || index >= s.index.TotalEntries {
 		return nil, fmt.Errorf("index %d out of range [0, %d)", index, s.index.TotalEntries)
 	}

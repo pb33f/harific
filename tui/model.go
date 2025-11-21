@@ -12,7 +12,7 @@ import (
     tea "github.com/charmbracelet/bubbletea/v2"
     "github.com/charmbracelet/lipgloss/v2"
     "github.com/pb33f/harific/motor"
-    "github.com/pb33f/harhar"
+    "github.com/pb33f/harific/motor/model"
 )
 
 // ViewMode represents the different view states
@@ -73,7 +73,7 @@ type HARViewModel struct {
 
     streamer      motor.HARStreamer
     index         *motor.Index
-    selectedEntry *harhar.Entry
+    selectedEntry *model.Entry
     selectedIndex int
 
     viewMode ViewMode

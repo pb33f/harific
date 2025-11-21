@@ -1,6 +1,6 @@
 package motor
 
-import "github.com/pb33f/harhar"
+import "github.com/pb33f/harific/motor/model"
 
 // readRequest is the private implementation of ReadRequest
 type readRequest struct {
@@ -44,12 +44,12 @@ func (b *readRequestBuilder) Build() ReadRequest {
 
 // readResponse is the private implementation of ReadResponse
 type readResponse struct {
-	entry     *harhar.Entry
+	entry     *model.Entry
 	bytesRead int64
 	err       error
 }
 
-func (r *readResponse) GetEntry() *harhar.Entry { return r.entry }
+func (r *readResponse) GetEntry() *model.Entry { return r.entry }
 func (r *readResponse) GetBytesRead() int64     { return r.bytesRead }
 func (r *readResponse) GetError() error         { return r.err }
 

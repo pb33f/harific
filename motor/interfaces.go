@@ -5,7 +5,7 @@ import (
     "encoding/json"
     "io"
 
-    "github.com/pb33f/harhar"
+    "github.com/pb33f/harific/motor/model"
 )
 
 // HARStreamer is the main interface for streaming HAR file entries
@@ -16,7 +16,7 @@ type HARStreamer interface {
     Initialize(ctx context.Context) error
 
     // GetEntry retrieves a single entry by index with full metadata and body
-    GetEntry(ctx context.Context, index int) (*harhar.Entry, error)
+    GetEntry(ctx context.Context, index int) (*model.Entry, error)
 
     // StreamRange streams entries within a specific index range [start, end)
     StreamRange(ctx context.Context, start, end int) (<-chan StreamResult, error)
@@ -93,7 +93,7 @@ type ReadRequestBuilder interface {
 
 // ReadResponse provides read-only access to read results
 type ReadResponse interface {
-	GetEntry() *harhar.Entry
+	GetEntry() *model.Entry
 	GetBytesRead() int64
 	GetError() error
 }
@@ -102,10 +102,10 @@ type ReadResponse interface {
 // implementations should use LRU eviction strategy
 type Cache interface {
     // Get retrieves an entry from cache
-    Get(index int) (*harhar.Entry, bool)
+    Get(index int) (*model.Entry, bool)
 
     // Put stores an entry in cache
-    Put(index int, entry *harhar.Entry)
+    Put(index int, entry *model.Entry)
 
     // Clear removes all entries from cache
     Clear()

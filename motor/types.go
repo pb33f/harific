@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 type EntryMetadata struct {
@@ -32,9 +32,9 @@ type Index struct {
 	FileHash           string
 	IndexVersion       int
 	Version            string
-	Creator            *harhar.Creator
-	Browser            *harhar.Creator
-	Pages              []harhar.Page
+	Creator            *model.Creator
+	Browser            *model.Creator
+	Pages              []model.Page
 	Entries            []*EntryMetadata
 	TotalEntries       int
 	stringShards       [256]*stringTableShard
@@ -103,7 +103,7 @@ func (idx *Index) initShard(shardIdx uint64) {
 
 type StreamResult struct {
 	Index int
-	Entry *harhar.Entry
+	Entry *model.Entry
 	Error error
 }
 

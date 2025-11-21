@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 // InjectionLocation defines where to inject a search term
@@ -124,7 +124,7 @@ func Generate(opts GenerateOptions) (*GenerateResult, error) {
 }
 
 // GenerateInMemory creates a har structure without writing to disk
-func GenerateInMemory(opts GenerateOptions) (*harhar.HAR, []InjectedTerm, error) {
+func GenerateInMemory(opts GenerateOptions) (*model.HAR, []InjectedTerm, error) {
 	// apply defaults (honor zero entrycount for empty har testing)
 	if opts.DictionaryPath == "" {
 		opts.DictionaryPath = DefaultGenerateOptions.DictionaryPath
@@ -160,7 +160,7 @@ func GenerateInMemory(opts GenerateOptions) (*harhar.HAR, []InjectedTerm, error)
 	injectionPlan := createInjectionPlan(opts.InjectTerms, opts.EntryCount, opts.InjectionLocations, rng)
 
 	// generate entries
-	var entries []harhar.Entry
+	var entries []model.Entry
 	var allInjected []InjectedTerm
 
 	for i := 0; i < opts.EntryCount; i++ {
@@ -170,10 +170,10 @@ func GenerateInMemory(opts GenerateOptions) (*harhar.HAR, []InjectedTerm, error)
 		allInjected = append(allInjected, injected...)
 	}
 
-	har := &harhar.HAR{
-		Log: harhar.Log{
+	har := &model.HAR{
+		Log: model.Log{
 			Version: "1.2",
-			Creator: harhar.Creator{
+			Creator: model.Creator{
 				Name:    "hargen",
 				Version: "1.0.0",
 			},

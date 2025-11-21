@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 // workBatch represents a range of entries to process
@@ -201,7 +201,7 @@ func searchEntry(ctx context.Context,
 }
 
 // searchHeaders checks if any header name or value matches the pattern
-func searchHeaders(index int, headers []harhar.NameValuePair, pattern compiledPattern, prefix string) *SearchResult {
+func searchHeaders(index int, headers []model.NameValuePair, pattern compiledPattern, prefix string) *SearchResult {
 	for _, header := range headers {
 		if matches(header.Name, pattern) || matches(header.Value, pattern) {
 			return &SearchResult{Index: index, Field: prefix + header.Name}
@@ -211,7 +211,7 @@ func searchHeaders(index int, headers []harhar.NameValuePair, pattern compiledPa
 }
 
 // searchCookies checks if any cookie name or value matches the pattern
-func searchCookies(index int, cookies []harhar.Cookie, pattern compiledPattern) *SearchResult {
+func searchCookies(index int, cookies []model.Cookie, pattern compiledPattern) *SearchResult {
 	for _, cookie := range cookies {
 		if matches(cookie.Name, pattern) || matches(cookie.Value, pattern) {
 			return &SearchResult{Index: index, Field: "cookie." + cookie.Name}

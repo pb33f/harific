@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/pb33f/harhar"
+	"github.com/pb33f/harific/motor/model"
 )
 
 // EntryGenerator creates HAR entries with optional term injection
@@ -33,8 +33,8 @@ func (eg *EntryGenerator) SetFatMode(enabled bool) {
 }
 
 // GenerateEntry creates a single HAR entry with optional term injection
-func (eg *EntryGenerator) GenerateEntry(index int, injectionRequests []injectionRequest, allowedLocations []InjectionLocation) (*harhar.Entry, []InjectedTerm) {
-	entry := &harhar.Entry{
+func (eg *EntryGenerator) GenerateEntry(index int, injectionRequests []injectionRequest, allowedLocations []InjectionLocation) (*model.Entry, []InjectedTerm) {
+	entry := &model.Entry{
 		Start:      time.Now().Add(-time.Duration(index) * time.Second).Format(time.RFC3339),
 		Time:       float64(eg.rng.Intn(1000)) + eg.rng.Float64(),
 		Request:    eg.generateRequest(),
@@ -54,8 +54,8 @@ func (eg *EntryGenerator) GenerateEntry(index int, injectionRequests []injection
 	return entry, injected
 }
 
-func (eg *EntryGenerator) generateRequest() harhar.Request {
-	return harhar.Request{
+func (eg *EntryGenerator) generateRequest() model.Request {
+	return model.Request{
 		Method:      eg.randomMethod(),
 		URL:         eg.generateURL(),
 		HTTPVersion: "HTTP/1.1",
@@ -68,9 +68,9 @@ func (eg *EntryGenerator) generateRequest() harhar.Request {
 	}
 }
 
-func (eg *EntryGenerator) generateResponse() harhar.Response {
+func (eg *EntryGenerator) generateResponse() model.Response {
 	status := eg.randomStatus()
-	return harhar.Response{
+	return model.Response{
 		StatusCode:  status,
 		StatusText:  eg.statusText(status),
 		HTTPVersion: "HTTP/1.1",
@@ -159,7 +159,7 @@ func (eg *EntryGenerator) generateIP() string {
 		eg.rng.Intn(256), eg.rng.Intn(256), eg.rng.Intn(256), eg.rng.Intn(256))
 }
 
-func (eg *EntryGenerator) generateHeaders(count int) []harhar.NameValuePair {
+func (eg *EntryGenerator) generateHeaders(count int) []model.NameValuePair {
 	if count == 0 {
 		count = 3
 	}
@@ -170,7 +170,7 @@ func (eg *EntryGenerator) generateHeaders(count int) []harhar.NameValuePair {
 		"Content-Length", "Cookie", "Accept-Language",
 	}
 
-	headers := make([]harhar.NameValuePair, 0, count)
+	headers := make([]model.NameValuePair, 0, count)
 	usedHeaders := make(map[string]bool)
 
 	for i := 0; i < count && len(commonHeaders) > len(usedHeaders); i++ {
@@ -180,7 +180,7 @@ func (eg *EntryGenerator) generateHeaders(count int) []harhar.NameValuePair {
 		}
 		usedHeaders[header] = true
 
-		headers = append(headers, harhar.NameValuePair{
+		headers = append(headers, model.NameValuePair{
 			Name:  header,
 			Value: eg.headerValue(header),
 		})
@@ -209,10 +209,10 @@ func (eg *EntryGenerator) headerValue(name string) string {
 	}
 }
 
-func (eg *EntryGenerator) generateQueryParams(count int) []harhar.NameValuePair {
-	params := make([]harhar.NameValuePair, count)
+func (eg *EntryGenerator) generateQueryParams(count int) []model.NameValuePair {
+	params := make([]model.NameValuePair, count)
 	for i := 0; i < count; i++ {
-		params[i] = harhar.NameValuePair{
+		params[i] = model.NameValuePair{
 			Name:  eg.dict.RandomWord(eg.rng),
 			Value: eg.dict.RandomWord(eg.rng),
 		}
@@ -220,10 +220,10 @@ func (eg *EntryGenerator) generateQueryParams(count int) []harhar.NameValuePair 
 	return params
 }
 
-func (eg *EntryGenerator) generateCookies(count int) []harhar.Cookie {
-	cookies := make([]harhar.Cookie, count)
+func (eg *EntryGenerator) generateCookies(count int) []model.Cookie {
+	cookies := make([]model.Cookie, count)
 	for i := 0; i < count; i++ {
-		cookies[i] = harhar.Cookie{
+		cookies[i] = model.Cookie{
 			Name:  eg.dict.RandomWord(eg.rng),
 			Value: eg.dict.RandomWord(eg.rng),
 		}
@@ -231,16 +231,16 @@ func (eg *EntryGenerator) generateCookies(count int) []harhar.Cookie {
 	return cookies
 }
 
-func (eg *EntryGenerator) generateRequestBody() harhar.BodyType {
+func (eg *EntryGenerator) generateRequestBody() model.BodyType {
 	obj := eg.jsonGen.GenerateObject(0)
 	content, _ := json.Marshal(obj)
-	return harhar.BodyType{
+	return model.BodyType{
 		MIMEType: "application/json",
 		Content:  string(content),
 	}
 }
 
-func (eg *EntryGenerator) generateResponseBody() harhar.BodyResponseType {
+func (eg *EntryGenerator) generateResponseBody() model.BodyResponseType {
 	var obj map[string]interface{}
 
 	if eg.fatMode {
@@ -250,14 +250,14 @@ func (eg *EntryGenerator) generateResponseBody() harhar.BodyResponseType {
 	}
 
 	content, _ := json.Marshal(obj)
-	return harhar.BodyResponseType{
+	return model.BodyResponseType{
 		Size:     len(content),
 		MIMEType: "application/json",
 		Content:  string(content),
 	}
 }
 
-func (eg *EntryGenerator) injectIntoEntry(entry *harhar.Entry, term string, location InjectionLocation, entryIndex int) InjectedTerm {
+func (eg *EntryGenerator) injectIntoEntry(entry *model.Entry, term string, location InjectionLocation, entryIndex int) InjectedTerm {
 	result := InjectedTerm{
 		Term:       term,
 		Location:   location,
@@ -280,7 +280,7 @@ func (eg *EntryGenerator) injectIntoEntry(entry *harhar.Entry, term string, loca
 
 	case RequestHeader:
 		headerName := eg.dict.RandomWord(eg.rng)
-		entry.Request.Headers = append(entry.Request.Headers, harhar.NameValuePair{
+		entry.Request.Headers = append(entry.Request.Headers, model.NameValuePair{
 			Name:  headerName,
 			Value: term,
 		})
@@ -288,7 +288,7 @@ func (eg *EntryGenerator) injectIntoEntry(entry *harhar.Entry, term string, loca
 
 	case ResponseHeader:
 		headerName := eg.dict.RandomWord(eg.rng)
-		entry.Response.Headers = append(entry.Response.Headers, harhar.NameValuePair{
+		entry.Response.Headers = append(entry.Response.Headers, model.NameValuePair{
 			Name:  headerName,
 			Value: term,
 		})
@@ -296,7 +296,7 @@ func (eg *EntryGenerator) injectIntoEntry(entry *harhar.Entry, term string, loca
 
 	case QueryParam:
 		paramName := eg.dict.RandomWord(eg.rng)
-		entry.Request.QueryParams = append(entry.Request.QueryParams, harhar.NameValuePair{
+		entry.Request.QueryParams = append(entry.Request.QueryParams, model.NameValuePair{
 			Name:  paramName,
 			Value: term,
 		})
@@ -304,7 +304,7 @@ func (eg *EntryGenerator) injectIntoEntry(entry *harhar.Entry, term string, loca
 
 	case Cookie:
 		cookieName := eg.dict.RandomWord(eg.rng)
-		entry.Request.Cookies = append(entry.Request.Cookies, harhar.Cookie{
+		entry.Request.Cookies = append(entry.Request.Cookies, model.Cookie{
 			Name:  cookieName,
 			Value: term,
 		})

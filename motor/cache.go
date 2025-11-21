@@ -1,6 +1,6 @@
 package motor
 
-import "github.com/pb33f/harhar"
+import "github.com/pb33f/harific/motor/model"
 
 type NoOpCache struct{}
 
@@ -8,11 +8,11 @@ func NewNoOpCache() *NoOpCache {
 	return &NoOpCache{}
 }
 
-func (c *NoOpCache) Get(index int) (*harhar.Entry, bool) {
+func (c *NoOpCache) Get(index int) (*model.Entry, bool) {
 	return nil, false
 }
 
-func (c *NoOpCache) Put(index int, entry *harhar.Entry) {}
+func (c *NoOpCache) Put(index int, entry *model.Entry) {}
 
 func (c *NoOpCache) Clear() {}
 
