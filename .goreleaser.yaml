@@ -9,7 +9,7 @@ builds:
       - linux
       - windows
       - darwin
-    main: ./cmd/harific
+    main: ./harific.go
 archives:
   - name_template: >-
       {{ .ProjectName }}_
