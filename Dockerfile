@@ -14,7 +14,7 @@ COPY . ./
 RUN go mod download && go mod verify
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -ldflags="-w -s -X 'main.version=$(git describe --tags --abbrev=0 2>/dev/null || echo dev)' -X 'main.date=$(date +%Y-%m-%dT%TZ)'" \
-    -v -o harific ./cmd/harific
+    -v -o harific harific.go
 
 FROM debian:bookworm-slim
 
