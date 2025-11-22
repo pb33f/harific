@@ -80,7 +80,11 @@ func TestInitializeWithProgress_ChannelClosedOnError(t *testing.T) {
 	})
 
 	t.Run("context cancelled", func(t *testing.T) {
-		streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+		harFile, cleanup, err := generateSmallHAR()
+		require.Nil(t, err)
+		defer cleanup()
+
+		streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 		require.Nil(t, err)
 
 		progressChan := make(chan IndexProgress, 10)
@@ -115,7 +119,11 @@ func TestInitializeWithProgress_ChannelClosedOnError(t *testing.T) {
 
 // TestInitializeWithProgress_ChannelClosedOnSuccess tests that progress channel is closed on success
 func TestInitializeWithProgress_ChannelClosedOnSuccess(t *testing.T) {
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	progressChan := make(chan IndexProgress, 100)
@@ -150,7 +158,11 @@ func TestInitializeWithProgress_ChannelClosedOnSuccess(t *testing.T) {
 
 // TestInitializeWithProgress_NilChannel tests that nil channel doesn't panic
 func TestInitializeWithProgress_NilChannel(t *testing.T) {
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	// Should not panic with nil channel

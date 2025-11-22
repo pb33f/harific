@@ -7,8 +7,14 @@ import (
 )
 
 func TestNewHARStreamer(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -17,14 +23,20 @@ func TestNewHARStreamer(t *testing.T) {
 		t.Fatal("expected non-nil streamer")
 	}
 
-	if streamer.filePath != "../testdata/test-5MB.har" {
-		t.Errorf("expected filepath ../testdata/test-5MB.har, got %s", streamer.filePath)
+	if streamer.filePath != harFile {
+		t.Errorf("expected filepath %s, got %s", harFile, streamer.filePath)
 	}
 }
 
 func TestHARStreamer_Initialize(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -49,8 +61,14 @@ func TestHARStreamer_Initialize(t *testing.T) {
 }
 
 func TestHARStreamer_GetEntry(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -83,8 +101,14 @@ func TestHARStreamer_GetEntry(t *testing.T) {
 }
 
 func TestHARStreamer_GetEntryOutOfBounds(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -109,8 +133,14 @@ func TestHARStreamer_GetEntryOutOfBounds(t *testing.T) {
 }
 
 func TestHARStreamer_GetMetadata(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -147,8 +177,14 @@ func TestHARStreamer_StreamRange(t *testing.T) {
 		t.Skip("skipping stream test in short mode")
 	}
 
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -194,8 +230,14 @@ func TestHARStreamer_StreamFiltered(t *testing.T) {
 		t.Skip("skipping filtered stream test in short mode")
 	}
 
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -235,10 +277,16 @@ func TestHARStreamer_StreamRangeWithCancel(t *testing.T) {
 		t.Skip("skipping cancel test in short mode")
 	}
 
-	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-50MB.har", opts)
+	harFile, cleanup, err := generateMediumHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	opts := DefaultStreamerOptions()
+	streamer, err := NewHARStreamer(harFile, opts)
+	if err != nil {
+		t.Fatalf("failed to create streamer: %v", err)
 	}
 	defer streamer.Close()
 
@@ -271,8 +319,14 @@ func TestHARStreamer_StreamRangeWithCancel(t *testing.T) {
 }
 
 func TestHARStreamer_Stats(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -308,8 +362,14 @@ func TestHARStreamer_Stats(t *testing.T) {
 }
 
 func TestHARStreamer_GetIndex(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}
@@ -331,8 +391,14 @@ func TestHARStreamer_GetIndex(t *testing.T) {
 }
 
 func TestHARStreamer_WithTimeout(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
 		t.Fatalf("failed to create streamer: %v", err)
 	}

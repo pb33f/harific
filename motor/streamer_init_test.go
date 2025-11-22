@@ -10,7 +10,11 @@ import (
 
 // TestUninitializedStreamer_GetEntry tests that GetEntry returns error before initialization
 func TestUninitializedStreamer_GetEntry(t *testing.T) {
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	// Try to get an entry without initializing
@@ -25,7 +29,11 @@ func TestUninitializedStreamer_GetEntry(t *testing.T) {
 
 // TestUninitializedStreamer_GetMetadata tests that GetMetadata returns error before initialization
 func TestUninitializedStreamer_GetMetadata(t *testing.T) {
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	// Try to get metadata without initializing
@@ -39,7 +47,11 @@ func TestUninitializedStreamer_GetMetadata(t *testing.T) {
 
 // TestUninitializedStreamer_StreamRange tests that StreamRange returns error before initialization
 func TestUninitializedStreamer_StreamRange(t *testing.T) {
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	// Try to stream without initializing
@@ -53,7 +65,11 @@ func TestUninitializedStreamer_StreamRange(t *testing.T) {
 
 // TestUninitializedStreamer_StreamFiltered tests that StreamFiltered returns error before initialization
 func TestUninitializedStreamer_StreamFiltered(t *testing.T) {
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	filter := func(meta *EntryMetadata) bool { return true }
@@ -69,7 +85,11 @@ func TestUninitializedStreamer_StreamFiltered(t *testing.T) {
 
 // TestInitializedStreamer_WorksNormally tests that initialized streamer works as expected
 func TestInitializedStreamer_WorksNormally(t *testing.T) {
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	// Initialize properly

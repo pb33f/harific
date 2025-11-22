@@ -12,13 +12,19 @@ import (
 )
 
 func TestNewEntryReader(t *testing.T) {
-	// build index first
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	// build index first
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	file.Close()
 	if err != nil {
@@ -26,7 +32,7 @@ func TestNewEntryReader(t *testing.T) {
 	}
 
 	// create reader
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	if err != nil {
 		t.Fatalf("failed to create reader: %v", err)
 	}
@@ -38,13 +44,19 @@ func TestNewEntryReader(t *testing.T) {
 }
 
 func TestEntryReader_ReadAt(t *testing.T) {
-	// build index
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	// build index
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	file.Close()
 	if err != nil {
@@ -52,7 +64,7 @@ func TestEntryReader_ReadAt(t *testing.T) {
 	}
 
 	// create reader
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	if err != nil {
 		t.Fatalf("failed to create reader: %v", err)
 	}
@@ -85,19 +97,25 @@ func TestEntryReader_ReadAtMultiple(t *testing.T) {
 		t.Skip("skipping multiple read test in short mode")
 	}
 
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	file.Close()
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
 	}
 
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	if err != nil {
 		t.Fatalf("failed to create reader: %v", err)
 	}
@@ -123,19 +141,25 @@ func TestEntryReader_ReadAtMultiple(t *testing.T) {
 }
 
 func TestEntryReader_ReadMetadata(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	file.Close()
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
 	}
 
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	if err != nil {
 		t.Fatalf("failed to create reader: %v", err)
 	}
@@ -162,19 +186,25 @@ func TestEntryReader_ReadMetadata(t *testing.T) {
 }
 
 func TestEntryReader_ReadMetadataOutOfBounds(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	file.Close()
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
 	}
 
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	if err != nil {
 		t.Fatalf("failed to create reader: %v", err)
 	}
@@ -194,19 +224,25 @@ func TestEntryReader_ReadMetadataOutOfBounds(t *testing.T) {
 }
 
 func TestEntryReader_ReadPartial(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	file.Close()
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
 	}
 
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	if err != nil {
 		t.Fatalf("failed to create reader: %v", err)
 	}
@@ -235,19 +271,25 @@ func TestEntryReader_ReadPartial(t *testing.T) {
 }
 
 func TestEntryReader_StreamResponseBody(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	file.Close()
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
 	}
 
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	if err != nil {
 		t.Fatalf("failed to create reader: %v", err)
 	}
@@ -267,19 +309,25 @@ func TestEntryReader_StreamResponseBody(t *testing.T) {
 }
 
 func TestEntryReader_Close(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	file.Close()
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
 	}
 
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	if err != nil {
 		t.Fatalf("failed to create reader: %v", err)
 	}

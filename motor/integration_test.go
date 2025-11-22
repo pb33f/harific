@@ -11,13 +11,19 @@ func TestFullPipeline(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
+	harFile, cleanup, err := generateSmallHAR()
+	if err != nil {
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	// create streamer
 	opts := DefaultStreamerOptions()
 	opts.WorkerCount = 2
 
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to create streamer: %v", err)
 	}
 	defer streamer.Close()
 
