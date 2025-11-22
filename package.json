@@ -1,0 +1,43 @@
+{
+  "name": "@pb33f/harific",
+  "version": "0.0.0",
+  "description": "Lightning-fast HAR file viewer and analysis tool with TUI and mock server",
+  "type": "module",
+  "author": "Dave Shanley",
+  "license": "MIT",
+  "homepage": "https://pb33f.io/harific",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pb33f/harific.git"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "scripts": {
+    "postinstall": "node ./npm-install/postinstall.js"
+  },
+  "bin": {
+    "harific": "bin/harific.js"
+  },
+  "files": [
+    "npm-install",
+    "bin"
+  ],
+  "dependencies": {
+    "node-fetch": "^3.2.10",
+    "tar": "^6.1.11"
+  },
+  "bugs": {
+    "url": "https://github.com/pb33f/harific/issues"
+  },
+  "keywords": [
+    "har",
+    "http-archive",
+    "har-viewer",
+    "har-analyzer",
+    "mock-server",
+    "http-debugging",
+    "network-analysis",
+    "tui"
+  ]
+}
