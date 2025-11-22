@@ -7,23 +7,29 @@ import (
 )
 
 func TestIndexBuilder_Build_5MB(t *testing.T) {
-	// open test file
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	// open test file
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 	defer file.Close()
 
 	// build index
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
 	}
 
 	// verify index properties
-	if index.FilePath != "../testdata/test-5MB.har" {
-		t.Errorf("expected filepath ../testdata/test-5MB.har, got %s", index.FilePath)
+	if index.FilePath != harFile {
+		t.Errorf("expected filepath %s, got %s", harFile, index.FilePath)
 	}
 
 	if index.TotalEntries <= 0 {
@@ -55,13 +61,19 @@ func TestIndexBuilder_Build_50MB(t *testing.T) {
 		t.Skip("skipping 50MB test in short mode")
 	}
 
-	file, err := os.Open("../testdata/test-50MB.har")
+	harFile, cleanup, err := generateMediumHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 	defer file.Close()
 
-	builder := NewIndexBuilder("../testdata/test-50MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
@@ -76,13 +88,19 @@ func TestIndexBuilder_Build_50MB(t *testing.T) {
 }
 
 func TestIndexBuilder_Metadata(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 	defer file.Close()
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
@@ -116,13 +134,19 @@ func TestIndexBuilder_Metadata(t *testing.T) {
 }
 
 func TestIndexBuilder_TimeRange(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 	defer file.Close()
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
@@ -146,13 +170,19 @@ func TestIndexBuilder_TimeRange(t *testing.T) {
 }
 
 func TestIndexBuilder_StringInterning(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 	defer file.Close()
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)
@@ -172,13 +202,19 @@ func TestIndexBuilder_StringInterning(t *testing.T) {
 }
 
 func TestIndexBuilder_TotalBytes(t *testing.T) {
-	file, err := os.Open("../testdata/test-5MB.har")
+	harFile, cleanup, err := generateSmallHAR()
 	if err != nil {
-		t.Skipf("test file not found: %v", err)
+		t.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
+	file, err := os.Open(harFile)
+	if err != nil {
+		t.Fatalf("failed to open HAR file: %v", err)
 	}
 	defer file.Close()
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	if err != nil {
 		t.Fatalf("failed to build index: %v", err)

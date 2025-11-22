@@ -12,10 +12,15 @@ import (
 
 // TestStreamRange_NoGoroutineLeak tests that goroutines are cleaned up when context is cancelled
 func TestStreamRange_NoGoroutineLeak(t *testing.T) {
+	// Generate test HAR file
+	harFile, cleanup, err := generateMediumHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
 	opts := DefaultStreamerOptions()
 	opts.WorkerCount = 8 // Use multiple workers to test concurrent cleanup
 
-	streamer, err := NewHARStreamer("../testdata/test-50MB.har", opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	require.Nil(t, err)
 
 	err = streamer.Initialize(context.Background())
@@ -64,7 +69,11 @@ func TestStreamFiltered_NoGoroutineLeak(t *testing.T) {
 	opts := DefaultStreamerOptions()
 	opts.WorkerCount = 8
 
-	streamer, err := NewHARStreamer("../testdata/test-50MB.har", opts)
+	harFile, cleanup, err := generateMediumHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, opts)
 	require.Nil(t, err)
 
 	err = streamer.Initialize(context.Background())
@@ -113,7 +122,11 @@ func TestStreamRange_ConsumerStopsReading(t *testing.T) {
 	opts := DefaultStreamerOptions()
 	opts.WorkerCount = 4
 
-	streamer, err := NewHARStreamer("../testdata/test-50MB.har", opts)
+	harFile, cleanup, err := generateMediumHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, opts)
 	require.Nil(t, err)
 
 	err = streamer.Initialize(context.Background())
@@ -155,7 +168,11 @@ func TestStreamRange_RapidCancellation(t *testing.T) {
 	opts := DefaultStreamerOptions()
 	opts.WorkerCount = 8
 
-	streamer, err := NewHARStreamer("../testdata/test-50MB.har", opts)
+	harFile, cleanup, err := generateMediumHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
+	streamer, err := NewHARStreamer(harFile, opts)
 	require.Nil(t, err)
 
 	err = streamer.Initialize(context.Background())

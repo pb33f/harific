@@ -8,23 +8,29 @@ import (
 
 // benchmark random access pattern - simulates jumping to random entries
 func BenchmarkRandomAccess_5MB(b *testing.B) {
-	benchmarkRandomAccess(b, "../testdata/test-5MB.har")
+	benchmarkRandomAccess(b, generateSmallHAR)
 }
 
 func BenchmarkRandomAccess_50MB(b *testing.B) {
-	benchmarkRandomAccess(b, "../testdata/test-50MB.har")
+	benchmarkRandomAccess(b, generateMediumHAR)
 }
 
 func BenchmarkRandomAccess_500MB(b *testing.B) {
-	benchmarkRandomAccess(b, "../testdata/test-500MB.har")
+	b.Skip("skipping 500MB test - no generator function available")
 }
 
-func benchmarkRandomAccess(b *testing.B, filePath string) {
+func benchmarkRandomAccess(b *testing.B, generateFunc func() (string, func(), error)) {
+	harFile, cleanup, err := generateFunc()
+	if err != nil {
+		b.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	// setup
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer(filePath, opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
-		b.Skipf("test file not found: %v", err)
+		b.Fatalf("failed to create streamer: %v", err)
 	}
 	defer streamer.Close()
 
@@ -63,25 +69,31 @@ func benchmarkRandomAccess(b *testing.B, filePath string) {
 
 // benchmark sequential streaming pattern - simulates streaming chunks of entries
 func BenchmarkSequentialStream_5MB(b *testing.B) {
-	benchmarkSequentialStream(b, "../testdata/test-5MB.har", 10)
+	benchmarkSequentialStream(b, generateSmallHAR, 10)
 }
 
 func BenchmarkSequentialStream_50MB(b *testing.B) {
-	benchmarkSequentialStream(b, "../testdata/test-50MB.har", 50)
+	benchmarkSequentialStream(b, generateMediumHAR, 50)
 }
 
 func BenchmarkSequentialStream_500MB(b *testing.B) {
-	benchmarkSequentialStream(b, "../testdata/test-500MB.har", 100)
+	b.Skip("skipping 500MB test - no generator function available")
 }
 
-func benchmarkSequentialStream(b *testing.B, filePath string, chunkSize int) {
+func benchmarkSequentialStream(b *testing.B, generateFunc func() (string, func(), error), chunkSize int) {
+	harFile, cleanup, err := generateFunc()
+	if err != nil {
+		b.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	// setup
 	opts := DefaultStreamerOptions()
 	opts.WorkerCount = 4
 
-	streamer, err := NewHARStreamer(filePath, opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
-		b.Skipf("test file not found: %v", err)
+		b.Fatalf("failed to create streamer: %v", err)
 	}
 	defer streamer.Close()
 
@@ -127,25 +139,31 @@ func benchmarkSequentialStream(b *testing.B, filePath string, chunkSize int) {
 
 // benchmark index building - measures how fast we can build the index
 func BenchmarkIndexBuild_5MB(b *testing.B) {
-	benchmarkIndexBuild(b, "../testdata/test-5MB.har")
+	benchmarkIndexBuild(b, generateSmallHAR)
 }
 
 func BenchmarkIndexBuild_50MB(b *testing.B) {
-	benchmarkIndexBuild(b, "../testdata/test-50MB.har")
+	benchmarkIndexBuild(b, generateMediumHAR)
 }
 
 func BenchmarkIndexBuild_500MB(b *testing.B) {
-	benchmarkIndexBuild(b, "../testdata/test-500MB.har")
+	b.Skip("skipping 500MB test - no generator function available")
 }
 
-func benchmarkIndexBuild(b *testing.B, filePath string) {
+func benchmarkIndexBuild(b *testing.B, generateFunc func() (string, func(), error)) {
+	harFile, cleanup, err := generateFunc()
+	if err != nil {
+		b.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 		opts := DefaultStreamerOptions()
-		streamer, err := NewHARStreamer(filePath, opts)
+		streamer, err := NewHARStreamer(harFile, opts)
 		if err != nil {
-			b.Skipf("test file not found: %v", err)
+			b.Fatalf("failed to create streamer: %v", err)
 		}
 
 		ctx := context.Background()
@@ -165,23 +183,29 @@ func benchmarkIndexBuild(b *testing.B, filePath string) {
 
 // benchmark metadata access - measures lightweight metadata retrieval
 func BenchmarkMetadataAccess_5MB(b *testing.B) {
-	benchmarkMetadataAccess(b, "../testdata/test-5MB.har")
+	benchmarkMetadataAccess(b, generateSmallHAR)
 }
 
 func BenchmarkMetadataAccess_50MB(b *testing.B) {
-	benchmarkMetadataAccess(b, "../testdata/test-50MB.har")
+	benchmarkMetadataAccess(b, generateMediumHAR)
 }
 
 func BenchmarkMetadataAccess_500MB(b *testing.B) {
-	benchmarkMetadataAccess(b, "../testdata/test-500MB.har")
+	b.Skip("skipping 500MB test - no generator function available")
 }
 
-func benchmarkMetadataAccess(b *testing.B, filePath string) {
+func benchmarkMetadataAccess(b *testing.B, generateFunc func() (string, func(), error)) {
+	harFile, cleanup, err := generateFunc()
+	if err != nil {
+		b.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	// setup
 	opts := DefaultStreamerOptions()
-	streamer, err := NewHARStreamer(filePath, opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
-		b.Skipf("test file not found: %v", err)
+		b.Fatalf("failed to create streamer: %v", err)
 	}
 	defer streamer.Close()
 
@@ -215,31 +239,37 @@ func benchmarkMetadataAccess(b *testing.B, filePath string) {
 
 // benchmark filtered streaming - measures performance of filtering
 func BenchmarkFilteredStream_5MB_ByMethod(b *testing.B) {
-	benchmarkFilteredStream(b, "../testdata/test-5MB.har", func(meta *EntryMetadata) bool {
+	benchmarkFilteredStream(b, generateSmallHAR, func(meta *EntryMetadata) bool {
 		return meta.Method == "GET"
 	})
 }
 
 func BenchmarkFilteredStream_50MB_ByMethod(b *testing.B) {
-	benchmarkFilteredStream(b, "../testdata/test-50MB.har", func(meta *EntryMetadata) bool {
+	benchmarkFilteredStream(b, generateMediumHAR, func(meta *EntryMetadata) bool {
 		return meta.Method == "POST"
 	})
 }
 
 func BenchmarkFilteredStream_5MB_ByStatus(b *testing.B) {
-	benchmarkFilteredStream(b, "../testdata/test-5MB.har", func(meta *EntryMetadata) bool {
+	benchmarkFilteredStream(b, generateSmallHAR, func(meta *EntryMetadata) bool {
 		return meta.StatusCode == 200
 	})
 }
 
-func benchmarkFilteredStream(b *testing.B, filePath string, filter func(*EntryMetadata) bool) {
+func benchmarkFilteredStream(b *testing.B, generateFunc func() (string, func(), error), filter func(*EntryMetadata) bool) {
+	harFile, cleanup, err := generateFunc()
+	if err != nil {
+		b.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	// setup
 	opts := DefaultStreamerOptions()
 	opts.WorkerCount = 4
 
-	streamer, err := NewHARStreamer(filePath, opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
-		b.Skipf("test file not found: %v", err)
+		b.Fatalf("failed to create streamer: %v", err)
 	}
 	defer streamer.Close()
 
@@ -293,21 +323,27 @@ func BenchmarkStringInterning(b *testing.B) {
 
 // benchmark concurrent access - measures thread-safety overhead
 func BenchmarkConcurrentAccess_5MB(b *testing.B) {
-	benchmarkConcurrentAccess(b, "../testdata/test-5MB.har", 4)
+	benchmarkConcurrentAccess(b, generateSmallHAR, 4)
 }
 
 func BenchmarkConcurrentAccess_50MB(b *testing.B) {
-	benchmarkConcurrentAccess(b, "../testdata/test-50MB.har", 8)
+	benchmarkConcurrentAccess(b, generateMediumHAR, 8)
 }
 
-func benchmarkConcurrentAccess(b *testing.B, filePath string, workers int) {
+func benchmarkConcurrentAccess(b *testing.B, generateFunc func() (string, func(), error), workers int) {
+	harFile, cleanup, err := generateFunc()
+	if err != nil {
+		b.Fatalf("failed to generate test HAR: %v", err)
+	}
+	defer cleanup()
+
 	// setup
 	opts := DefaultStreamerOptions()
 	opts.WorkerCount = workers
 
-	streamer, err := NewHARStreamer(filePath, opts)
+	streamer, err := NewHARStreamer(harFile, opts)
 	if err != nil {
-		b.Skipf("test file not found: %v", err)
+		b.Fatalf("failed to create streamer: %v", err)
 	}
 	defer streamer.Close()
 

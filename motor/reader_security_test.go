@@ -11,17 +11,22 @@ import (
 
 // TestRead_EntrySizeLimit tests that entries exceeding MaxEntrySize are rejected
 func TestRead_EntrySizeLimit(t *testing.T) {
+	// Generate test HAR file
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
 	// Build a minimal index first
-	file, err := os.Open("../testdata/test-5MB.har")
+	file, err := os.Open(harFile)
 	require.Nil(t, err, "failed to open test file")
 	defer file.Close()
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	require.Nil(t, err, "failed to build index")
 
 	// Create a reader with a valid index
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	require.Nil(t, err, "failed to create reader")
 	defer reader.Close()
 
@@ -44,17 +49,22 @@ func TestRead_EntrySizeLimit(t *testing.T) {
 
 // TestRead_BufferAllocationLimit tests that buffer allocation respects MaxEntrySize
 func TestRead_BufferAllocationLimit(t *testing.T) {
+	// Generate test HAR file
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
 	// Build a minimal index first
-	file, err := os.Open("../testdata/test-5MB.har")
+	file, err := os.Open(harFile)
 	require.Nil(t, err, "failed to open test file")
 	defer file.Close()
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	require.Nil(t, err, "failed to build index")
 
 	// Create a reader with a valid index
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	require.Nil(t, err, "failed to create reader")
 	defer reader.Close()
 
@@ -81,17 +91,21 @@ func TestRead_BufferAllocationLimit(t *testing.T) {
 
 // TestRead_ValidSizeBelowLimit tests that entries below MaxEntrySize work correctly
 func TestRead_ValidSizeBelowLimit(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
 	// Build a small index for testing
-	file, err := os.Open("../testdata/test-5MB.har")
+	file, err := os.Open(harFile)
 	require.Nil(t, err, "failed to open test file")
 	defer file.Close()
 
-	builder := NewIndexBuilder("../testdata/test-5MB.har")
+	builder := NewIndexBuilder(harFile)
 	index, err := builder.Build(file)
 	require.Nil(t, err, "failed to build index")
 	require.Greater(t, len(index.Entries), 0, "expected at least one entry")
 
-	reader, err := NewEntryReader("../testdata/test-5MB.har", index)
+	reader, err := NewEntryReader(harFile, index)
 	require.Nil(t, err, "failed to create reader")
 	defer reader.Close()
 

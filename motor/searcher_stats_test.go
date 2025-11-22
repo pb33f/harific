@@ -10,8 +10,13 @@ import (
 
 // TestSearcher_StatsResetBetweenSearches tests that statistics are reset for each new search
 func TestSearcher_StatsResetBetweenSearches(t *testing.T) {
+	// Generate test HAR file
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
 	// Create streamer and initialize
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	err = streamer.Initialize(context.Background())
@@ -19,7 +24,7 @@ func TestSearcher_StatsResetBetweenSearches(t *testing.T) {
 	defer streamer.Close()
 
 	// Create searcher
-	reader, err := NewEntryReader("../testdata/test-5MB.har", streamer.GetIndex())
+	reader, err := NewEntryReader(harFile, streamer.GetIndex())
 	require.Nil(t, err)
 	defer reader.Close()
 
@@ -76,8 +81,12 @@ func TestSearcher_StatsResetBetweenSearches(t *testing.T) {
 
 // TestSearcher_MultipleSequentialSearches tests multiple searches on same searcher instance
 func TestSearcher_MultipleSequentialSearches(t *testing.T) {
+	harFile, cleanup, err := generateSmallHAR()
+	require.Nil(t, err)
+	defer cleanup()
+
 	// Create and initialize streamer
-	streamer, err := NewHARStreamer("../testdata/test-5MB.har", DefaultStreamerOptions())
+	streamer, err := NewHARStreamer(harFile, DefaultStreamerOptions())
 	require.Nil(t, err)
 
 	err = streamer.Initialize(context.Background())
@@ -85,7 +94,7 @@ func TestSearcher_MultipleSequentialSearches(t *testing.T) {
 	defer streamer.Close()
 
 	// Create searcher
-	reader, err := NewEntryReader("../testdata/test-5MB.har", streamer.GetIndex())
+	reader, err := NewEntryReader(harFile, streamer.GetIndex())
 	require.Nil(t, err)
 	defer reader.Close()
 
