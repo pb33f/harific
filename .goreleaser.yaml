@@ -46,17 +46,19 @@ brews:
 snapshot:
   name_template: "{{ .Tag }}"
 
-dockers:
-  - image_templates:
-      - "docker.io/pb33f/harific:{{ .Tag }}"
-      - "docker.io/pb33f/harific:latest"
-      - "ghcr.io/pb33f/harific:{{ .Tag }}"
-      - "ghcr.io/pb33f/harific:latest"
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--platform=linux/arm64"
+# Docker images are built separately in GitHub Actions (publish.yaml)
+# to support multi-platform builds with proper manifest lists
+# dockers:
+#   - image_templates:
+#       - "docker.io/pb33f/harific:{{ .Tag }}"
+#       - "docker.io/pb33f/harific:latest"
+#       - "ghcr.io/pb33f/harific:{{ .Tag }}"
+#       - "ghcr.io/pb33f/harific:latest"
+#     dockerfile: Dockerfile
+#     use: buildx
+#     build_flag_templates:
+#       - "--platform=linux/amd64"
+#       - "--platform=linux/arm64"
 
 upx:
   -
