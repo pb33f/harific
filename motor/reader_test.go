@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/pb33f/harific/hargen"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/pb33f/testify/assert"
+	"github.com/pb33f/testify/require"
 )
 
 func TestNewEntryReader(t *testing.T) {
