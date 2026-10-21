@@ -2,7 +2,6 @@ package model
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,19 +12,20 @@ import (
 // ConvertRequestIntoHttpRequest converts a HAR Request into a standard Go http.Request.
 func ConvertRequestIntoHttpRequest(req Request) (*http.Request, error) {
 	r := bytes.NewReader([]byte(req.Body.Content))
-	query := ""
-	if len(req.QueryParams) > 0 {
-		query = "?"
-		for x, param := range req.QueryParams {
-			amp := "&"
-			if x < len(req.QueryParams)-1 {
-				amp = ""
-			}
-			query += fmt.Sprintf("%s=%s%s", param.Name, param.Value, amp)
-		}
+	// Prefer the recorded query to preserve repeated parameters and escaping.
+	httpRequest, err := http.NewRequest(req.Method, req.URL, nil)
+	if err != nil {
+		return nil, err
 	}
-
-	httpRequest, err := http.NewRequest(req.Method, fmt.Sprintf("%s%s", req.URL, query), nil)
+	// Some HAR producers (including hargen) store the query only in QueryParams.
+	// Preserve that representation without overwriting an explicit empty query.
+	if httpRequest.URL.RawQuery == "" && !httpRequest.URL.ForceQuery {
+		params := make([]string, 0, len(req.QueryParams))
+		for _, param := range req.QueryParams {
+			params = append(params, url.QueryEscape(param.Name)+"="+url.QueryEscape(param.Value))
+		}
+		httpRequest.URL.RawQuery = strings.Join(params, "&")
+	}
 
 	values := make(url.Values)
 	for _, param := range req.Body.Params {
@@ -37,9 +37,6 @@ func ConvertRequestIntoHttpRequest(req Request) (*http.Request, error) {
 		httpRequest.Form = values
 	}
 
-	if err != nil {
-		return nil, err
-	}
 	for _, header := range req.Headers {
 		if !strings.HasPrefix(header.Name, ":") {
 			httpRequest.Header.Set(header.Name, header.Value)
