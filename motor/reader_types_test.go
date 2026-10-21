@@ -3,7 +3,7 @@ package motor
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/pb33f/testify/assert"
 )
 
 func TestReadRequestBuilder_Complete(t *testing.T) {

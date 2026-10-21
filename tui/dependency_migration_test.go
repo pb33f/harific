@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"charm.land/bubbles/v2/viewport"
-	"github.com/stretchr/testify/require"
+	"github.com/pb33f/testify/require"
 )
 
 func TestViewUsesAlternateScreen(t *testing.T) {

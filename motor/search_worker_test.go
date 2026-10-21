@@ -8,8 +8,8 @@ import (
 
 	"github.com/pb33f/harific/hargen"
 	"github.com/pb33f/harific/motor/model"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/pb33f/testify/assert"
+	"github.com/pb33f/testify/require"
 )
 
 func TestCreateWorkBatches_AutoPartition(t *testing.T) {
