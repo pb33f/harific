@@ -11,6 +11,7 @@ func TestConvertRequestIntoHttpRequestPreservesHARQuery(t *testing.T) {
 	tests := []struct {
 		name    string
 		request string
+		wantURL string
 		query   url.Values
 	}{
 		{
@@ -39,13 +40,20 @@ func TestConvertRequestIntoHttpRequestPreservesHARQuery(t *testing.T) {
 			query:   url.Values{"page": {"1"}},
 		},
 		{
-			name:    "metadata does not invent a query",
+			name:    "queryString only fallback",
 			request: `{"method":"GET","url":"https://example.com/","queryString":[{"name":"page","value":"1"}]}`,
-			query:   url.Values{},
+			wantURL: "https://example.com/?page=1",
+			query:   url.Values{"page": {"1"}},
+		},
+		{
+			name:    "fallback preserves order repeated values and escaping",
+			request: `{"method":"GET","url":"https://example.com/","queryString":[{"name":"tag","value":"a"},{"name":"x&y","value":"a+b c&=#"},{"name":"tag","value":"b"},{"name":"tag","value":"a"},{"name":"empty","value":""},{"name":"","value":"%2F"}]}`,
+			wantURL: "https://example.com/?tag=a&x%26y=a%2Bb+c%26%3D%23&tag=b&tag=a&empty=&=%252F",
+			query:   url.Values{"tag": {"a", "b", "a"}, "x&y": {"a+b c&=#"}, "empty": {""}, "": {"%2F"}},
 		},
 		{
 			name:    "explicit empty query",
-			request: `{"method":"GET","url":"https://example.com/?","queryString":[]}`,
+			request: `{"method":"GET","url":"https://example.com/?","queryString":[{"name":"page","value":"1"}]}`,
 			query:   url.Values{},
 		},
 		{
@@ -65,11 +73,27 @@ func TestConvertRequestIntoHttpRequestPreservesHARQuery(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer got.Body.Close()
-			if got.URL.String() != req.URL {
-				t.Errorf("URL = %q, want recorded URL %q", got.URL.String(), req.URL)
+			wantURL := tt.wantURL
+			if wantURL == "" {
+				wantURL = req.URL
+			}
+			if got.URL.String() != wantURL {
+				t.Errorf("URL = %q, want %q", got.URL.String(), wantURL)
 			}
 			if query := got.URL.Query(); !reflect.DeepEqual(query, tt.query) {
 				t.Errorf("query = %#v, want %#v", query, tt.query)
+			}
+		})
+	}
+}
+
+func TestConvertRequestIntoHttpRequestInvalidRequest(t *testing.T) {
+	for _, method := range []string{"GET", "POST", "PUT", "PATCH", "invalid method"} {
+		t.Run(method, func(t *testing.T) {
+			got, err := ConvertRequestIntoHttpRequest(Request{Method: method, URL: "https://example.com/%zz",
+				QueryParams: []NameValuePair{{Name: "page", Value: "1"}}})
+			if err == nil || got != nil {
+				t.Fatalf("expected nil request and error, got %v, %v", got, err)
 			}
 		})
 	}
