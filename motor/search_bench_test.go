@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/pb33f/harific/hargen"
-	"github.com/stretchr/testify/require"
+	"github.com/pb33f/testify/require"
 )
 
 // benchmark configurations for small, medium, and large har files

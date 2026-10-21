@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/pb33f/harific/motor/model"
-	"github.com/stretchr/testify/require"
+	"github.com/pb33f/testify/require"
 )
 
 func TestStreamHARConvertRequestPreservesQuery(t *testing.T) {

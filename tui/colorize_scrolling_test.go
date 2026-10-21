@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/v2/table"
+	"charm.land/bubbles/v2/table"
 )
 
 // TestActualScrollingBehavior simulates real scrolling by moving cursor one step at a time
