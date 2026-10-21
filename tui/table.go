@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/charmbracelet/bubbles/v2/table"
+	"charm.land/bubbles/v2/table"
 	"github.com/pb33f/harific/motor"
 )
 

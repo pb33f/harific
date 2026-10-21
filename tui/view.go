@@ -5,7 +5,7 @@ import (
     "strings"
     "time"
 
-    "github.com/charmbracelet/lipgloss/v2"
+    "charm.land/lipgloss/v2"
 )
 
 const (

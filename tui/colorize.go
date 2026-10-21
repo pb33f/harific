@@ -3,7 +3,7 @@ package tui
 import (
     "strings"
 
-    "github.com/charmbracelet/bubbles/v2/table"
+    "charm.land/bubbles/v2/table"
 )
 
 

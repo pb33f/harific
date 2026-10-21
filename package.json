@@ -11,10 +11,11 @@
     "url": "git+https://github.com/pb33f/harific.git"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
-    "postinstall": "node ./npm-install/postinstall.js"
+    "postinstall": "node ./npm-install/postinstall.js",
+    "test": "node --test npm-install/postinstall.test.js"
   },
   "bin": {
     "harific": "bin/harific.js"
@@ -24,8 +25,8 @@
     "bin"
   ],
   "dependencies": {
-    "node-fetch": "^3.2.10",
-    "tar": "^6.1.11"
+    "node-fetch": "^3.3.2",
+    "tar": "^7.5.22"
   },
   "bugs": {
     "url": "https://github.com/pb33f/harific/issues"
