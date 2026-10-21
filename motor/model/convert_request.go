@@ -2,7 +2,6 @@ package model
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,19 +12,9 @@ import (
 // ConvertRequestIntoHttpRequest converts a HAR Request into a standard Go http.Request.
 func ConvertRequestIntoHttpRequest(req Request) (*http.Request, error) {
 	r := bytes.NewReader([]byte(req.Body.Content))
-	query := ""
-	if len(req.QueryParams) > 0 {
-		query = "?"
-		for x, param := range req.QueryParams {
-			amp := "&"
-			if x < len(req.QueryParams)-1 {
-				amp = ""
-			}
-			query += fmt.Sprintf("%s=%s%s", param.Name, param.Value, amp)
-		}
-	}
-
-	httpRequest, err := http.NewRequest(req.Method, fmt.Sprintf("%s%s", req.URL, query), nil)
+	// HAR URLs already include the query string; QueryParams is its parsed metadata.
+	// Use the recorded URL unchanged to preserve repeated parameters and escaping.
+	httpRequest, err := http.NewRequest(req.Method, req.URL, nil)
 
 	values := make(url.Values)
 	for _, param := range req.Body.Params {
