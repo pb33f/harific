@@ -4,13 +4,13 @@ import (
     "context"
     "time"
 
-    "github.com/charmbracelet/bubbles/v2/progress"
-    "github.com/charmbracelet/bubbles/v2/spinner"
-    "github.com/charmbracelet/bubbles/v2/table"
-    "github.com/charmbracelet/bubbles/v2/textinput"
-    "github.com/charmbracelet/bubbles/v2/viewport"
-    tea "github.com/charmbracelet/bubbletea/v2"
-    "github.com/charmbracelet/lipgloss/v2"
+    "charm.land/bubbles/v2/progress"
+    "charm.land/bubbles/v2/spinner"
+    "charm.land/bubbles/v2/table"
+    "charm.land/bubbles/v2/textinput"
+    "charm.land/bubbles/v2/viewport"
+    tea "charm.land/bubbletea/v2"
+    "charm.land/lipgloss/v2"
     "github.com/pb33f/harific/motor"
     "github.com/pb33f/harific/motor/model"
 )
@@ -153,7 +153,8 @@ func NewHARViewModel(fileName string) (*HARViewModel, error) {
     searchSpinner.Style = lipgloss.NewStyle().Foreground(RGBPink)
 
     progressBar := progress.New(
-        progress.WithDefaultScaledGradient(),
+        progress.WithDefaultBlend(),
+        progress.WithScaled(true),
         progress.WithWidth(50),
     )
 
@@ -696,9 +697,9 @@ func (m *HARViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     return m, tea.Batch(cmds...)
 }
 
-func (m *HARViewModel) View() string {
+func (m *HARViewModel) View() tea.View {
     if m.quitting {
-        return ""
+        return tea.NewView("")
     }
 
     var baseView string
@@ -737,8 +738,10 @@ func (m *HARViewModel) View() string {
         }
     }
 
-    canvas := lipgloss.NewCanvas(layers...)
-    return canvas.Render()
+    canvas := lipgloss.NewCompositor(layers...)
+    view := tea.NewView(canvas.Render())
+    view.AltScreen = true
+    return view
 }
 
 func (m *HARViewModel) initializeTable() {

@@ -3,7 +3,7 @@ package cmd
 import (
     "image/color"
 
-    "github.com/charmbracelet/lipgloss/v2"
+    "charm.land/lipgloss/v2"
     "github.com/pb33f/harific/tui"
 )
 

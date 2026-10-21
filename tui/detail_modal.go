@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/v2/viewport"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // updateDetailContent updates the detail modal viewport content (e.g., after search changes)
@@ -15,7 +15,7 @@ func (m *HARViewModel) updateDetailContent() {
 	modalWidth := int(float64(m.width) * 0.9)
 
 	// Save current scroll position
-	savedYOffset := m.detailViewport.YOffset
+	savedYOffset := m.detailViewport.YOffset()
 
 	var content string
 	if m.activeModal == ModalRequestFull {
@@ -379,19 +379,19 @@ func (m *HARViewModel) handleDetailModalKeys(key string) (bool, tea.Cmd) {
 		return true, nil
 
 	case "up":
-		m.detailViewport.LineUp(1)
+		m.detailViewport.ScrollUp(1)
 		return true, nil
 
 	case "down":
-		m.detailViewport.LineDown(1)
+		m.detailViewport.ScrollDown(1)
 		return true, nil
 
 	case "pgup":
-		m.detailViewport.ViewUp()
+		m.detailViewport.PageUp()
 		return true, nil
 
 	case "pgdown":
-		m.detailViewport.ViewDown()
+		m.detailViewport.PageDown()
 		return true, nil
 	}
 

@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "charm.land/bubbletea/v2"
 	"github.com/pb33f/harific/tui"
 )
 
@@ -13,7 +13,7 @@ func LaunchTUI(harFile string) error {
 		return fmt.Errorf("failed to create TUI model: %w", err)
 	}
 
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model)
 
 	finalModel, err := p.Run()
 	if err != nil {
